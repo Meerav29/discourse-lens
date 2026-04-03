@@ -360,7 +360,7 @@ All endpoints return `Content-Type: application/json`. Errors return `{ "error":
 
 **Verification:**
 ```bash
-curl localhost:8000/api/health
+curl localhost:8001/api/health
 # → {"status":"ok"}
 # AND: browser at localhost:5173 shows input form without console errors
 ```
@@ -384,7 +384,7 @@ curl localhost:8000/api/health
 **Verification:**
 ```bash
 # Start a job via API:
-curl -X POST localhost:8000/api/jobs \
+curl -X POST localhost:8001/api/jobs \
   -H "Content-Type: application/json" \
   -d '{"topic": "mechanistic interpretability"}'
 
@@ -434,7 +434,7 @@ sqlite3 data/discourse.db "SELECT COUNT(*) FROM chunks WHERE is_duplicate=1"
 
 **Verification:**
 ```bash
-curl localhost:8000/api/corpus | python3 -c \
+curl localhost:8001/api/corpus | python3 -c \
   "import sys,json; d=json.load(sys.stdin); print(f'{len(d)} points, clusters: {set(p[\"cluster_id\"] for p in d)}')"
 # → "312 points, clusters: {0, 1, 2, 3, 4, 5, 6}" (numbers will vary)
 ```
@@ -477,7 +477,7 @@ curl localhost:8000/api/corpus | python3 -c \
 
 **Verification:**
 ```bash
-curl -X POST localhost:8000/api/chat \
+curl -X POST localhost:8001/api/chat \
   -H "Content-Type: application/json" \
   -d '{"query": "what are the main camps in this debate?"}'
 # → response where citations array has length >= 3
@@ -573,7 +573,7 @@ cp .env.example .env
 ollama pull nomic-embed-text
 
 # Start backend
-uvicorn backend.api.main:app --reload --port 8000
+uvicorn backend.api.main:app --reload --port 8001
 
 # Start frontend (separate terminal)
 cd frontend && npm run dev
@@ -614,7 +614,7 @@ Run these after each stage before proceeding. Expected outputs are approximate.
 
 ```bash
 # Stage 0
-curl localhost:8000/api/health
+curl localhost:8001/api/health
 # → {"status":"ok"}
 
 # Stage 1
@@ -626,7 +626,7 @@ sqlite3 data/discourse.db "SELECT COUNT(*) FROM chunks WHERE is_duplicate=0"
 # → 300+
 
 # Stage 3
-curl localhost:8000/api/corpus | python3 -c \
+curl localhost:8001/api/corpus | python3 -c \
   "import sys,json; d=json.load(sys.stdin); print(len(d), 'points')"
 # → 300+ points
 
@@ -634,7 +634,7 @@ curl localhost:8000/api/corpus | python3 -c \
 # Manual: open localhost:5173, verify all views render, test cross-filtering
 
 # Stage 5
-curl -X POST localhost:8000/api/chat \
+curl -X POST localhost:8001/api/chat \
   -H "Content-Type: application/json" \
   -d '{"query":"what are the main camps in this debate?"}'
 # → citations array length >= 3
