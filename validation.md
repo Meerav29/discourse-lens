@@ -57,6 +57,12 @@ The response contains a `job_id`:
 curl localhost:8001/api/jobs/<job_id>
 ```
 
+**Windows PowerShell alternative:**
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:8001/api/jobs/<job_id>
+```
+
 The `status` field progresses through these values:
 
 | Status | What is happening |
@@ -82,6 +88,13 @@ Run these after the job reaches `status: "done"`.
 ```bash
 curl localhost:8001/api/health
 # Expected: {"status":"ok"}
+```
+
+**Windows PowerShell alternative:**
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:8001/api/health
+# Expected: status ok
 ```
 
 ### Stage 1 — Ingestion
@@ -162,6 +175,15 @@ curl localhost:8001/api/corpus | python3 -c \
 # 412 points, clusters: {0, 1, 2, 3, 4, 5, 6}
 ```
 
+**Windows PowerShell alternative:**
+
+```powershell
+$d = Invoke-RestMethod -Uri http://localhost:8001/api/corpus
+Write-Host "$($d.Count) points"
+$d | Select-Object -ExpandProperty cluster_id | Sort-Object -Unique
+# Expected: 300+ points, several distinct cluster IDs listed
+```
+
 **Inspect a sample corpus point to confirm all fields are present:**
 
 ```bash
@@ -169,6 +191,14 @@ curl -s localhost:8001/api/corpus | python3 -c \
   "import sys,json; d=json.load(sys.stdin); import pprint; pprint.pprint(d[0])"
 # Expected: dict with chunk_id, article_id, url, title, domain, publish_date,
 #           x, y, cluster_id, cluster_label, distance_from_centroid, word_count
+```
+
+**Windows PowerShell alternative:**
+
+```powershell
+$d = Invoke-RestMethod -Uri http://localhost:8001/api/corpus
+$d[0] | Format-List
+# Expected: all fields listed above present on the first item
 ```
 
 **Check LanceDB vectors directory was created:**
@@ -200,6 +230,16 @@ unzip -l test-export.zip
 #   discourse-<topic>/cluster-map.canvas
 #   discourse-<topic>/vault/_index.md
 #   discourse-<topic>/vault/<article-slug>.md   (one per article)
+```
+
+**Windows PowerShell alternative:**
+
+```powershell
+Invoke-WebRequest -Uri http://localhost:8001/api/export -OutFile test-export.zip
+# Then list the contents:
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::OpenRead("$PWD\test-export.zip").Entries | Select-Object FullName
+# Expected: cluster-map.canvas, vault/_index.md, vault/<article-slug>.md entries
 ```
 
 **Verify the canvas file is valid JSON:**
