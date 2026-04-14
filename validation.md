@@ -35,6 +35,13 @@ curl -X POST localhost:8001/api/jobs \
   -d '{"topic": "mechanistic interpretability in large language models"}'
 ```
 
+> **Windows PowerShell?** Use `Invoke-RestMethod` instead:
+> ```powershell
+> Invoke-RestMethod -Method Post -Uri http://localhost:8001/api/jobs `
+>   -ContentType "application/json" `
+>   -Body '{"topic": "mechanistic interpretability in large language models"}'
+> ```
+
 The response contains a `job_id`:
 
 ```json
