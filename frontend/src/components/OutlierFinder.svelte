@@ -45,14 +45,14 @@
   }
   .empty {
     padding: 2rem;
-    color: #333;
+    color: var(--text-6);
     text-align: center;
     font-size: 0.85rem;
   }
   .row {
     background: none;
     border: none;
-    border-bottom: 1px solid #161620;
+    border-bottom: 1px solid var(--border);
     padding: 9px 14px;
     text-align: left;
     cursor: pointer;
@@ -60,7 +60,7 @@
     width: 100%;
     transition: background 0.1s;
   }
-  .row:hover { background: #15151f; }
+  .row:hover { background: var(--surface-2); }
   .top {
     display: flex;
     align-items: baseline;
@@ -69,7 +69,7 @@
   }
   .title {
     font-size: 0.8rem;
-    color: #c8c8d8;
+    color: var(--text-2);
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -77,7 +77,7 @@
   }
   .domain {
     font-size: 0.7rem;
-    color: #444;
+    color: var(--text-5);
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -98,7 +98,7 @@
   .bar-track {
     flex: 1;
     height: 3px;
-    background: #1c1c28;
+    background: var(--track);
     border-radius: 2px;
     overflow: hidden;
   }
@@ -109,7 +109,7 @@
   }
   .score {
     font-size: 0.68rem;
-    color: #444;
+    color: var(--text-5);
     width: 32px;
     text-align: right;
     flex-shrink: 0;

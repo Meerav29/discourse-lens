@@ -85,7 +85,7 @@ def query_corpus(query: str, db_path: str | None = None, top_k: int | None = Non
 
     context_parts = []
     for i, row in enumerate(deduped, start=1):
-        text = (row.get("parent_text") or "")[:600]
+        text = (row.get("parent_text") or "")[:3000]
         context_parts.append(
             CONTEXT_ITEM_TEMPLATE.format(
                 index=i,

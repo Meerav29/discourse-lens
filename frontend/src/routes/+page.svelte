@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import { api } from '../lib/api.js';
   import ClusterMap from '../components/ClusterMap.svelte';
   import OutlierFinder from '../components/OutlierFinder.svelte';
@@ -6,6 +7,21 @@
   import ConsensusBars from '../components/ConsensusBars.svelte';
   import ChatPanel from '../components/ChatPanel.svelte';
   import ArticleSidebar from '../components/ArticleSidebar.svelte';
+
+  // --- Theme ---
+  let theme = 'dark';
+
+  onMount(() => {
+    const saved = localStorage.getItem('discourse-theme');
+    theme = saved ?? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-theme', theme);
+  });
+
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('discourse-theme', theme);
+  }
 
   // --- Phase state ---
   let phase = 'input'; // 'input' | 'loading' | 'results'
@@ -29,17 +45,19 @@
   let selectedCluster = null;
   let selectedArticleId = null;
 
-  // --- Tab in bottom-right panel ---
-  let activeTab = 'consensus'; // 'consensus' | 'chat'
+  // --- Active tab in main view ---
+  let activeView = 'map'; // 'map' | 'temporal' | 'outliers' | 'consensus'
 
   // --- Export ---
   let exporting = false;
   let exportError = null;
 
-  // --- Computed: filtered outliers ---
+  // --- Computed ---
   $: filteredOutliers = selectedCluster == null
     ? outliers
     : outliers.filter(o => o.cluster_id === selectedCluster);
+
+  $: clusterCount = [...new Set(points.map(p => p.cluster_id))].length;
 
   async function handleSubmit() {
     if (!topic.trim()) return;
@@ -81,9 +99,7 @@
         clearInterval(pollTimer);
         jobError = job.error_msg || 'Unknown error';
       }
-    } catch (e) {
-      // transient network error — keep polling
-    }
+    } catch (e) { /* transient — keep polling */ }
   }
 
   async function loadResults() {
@@ -113,11 +129,11 @@
     outliers = [];
     selectedCluster = null;
     selectedArticleId = null;
+    activeView = 'map';
   }
 
   function handleSelectCluster(id) {
     selectedCluster = id;
-    // Refetch outliers filtered by cluster if needed (or just filter client-side)
   }
 
   function handleSelectArticle(id) {
@@ -155,11 +171,25 @@
     done: 'Done',
     error: 'Error',
   };
+
+  const TABS = [
+    { id: 'map',       label: 'Cluster Map'    },
+    { id: 'temporal',  label: 'Temporal Drift' },
+    { id: 'outliers',  label: 'Outliers'       },
+    { id: 'consensus', label: 'Consensus'      },
+  ];
 </script>
 
 <!-- ── INPUT PHASE ─────────────────────────────────────────── -->
 {#if phase === 'input'}
   <main class="input-page">
+    <button class="theme-toggle-float" on:click={toggleTheme} aria-label="Toggle theme">
+      {#if theme === 'dark'}
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      {:else}
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      {/if}
+    </button>
     <header>
       <h1>Discourse Lens</h1>
       <p>Map the shape of any conversation in under 10 minutes.</p>
@@ -173,9 +203,7 @@
           aria-label="Research topic"
           autofocus
         />
-        <button type="submit" disabled={!topic.trim()}>
-          Analyze Discourse
-        </button>
+        <button type="submit" disabled={!topic.trim()}>Analyze Discourse</button>
       </form>
     </section>
   </main>
@@ -183,9 +211,15 @@
 <!-- ── LOADING PHASE ───────────────────────────────────────── -->
 {:else if phase === 'loading'}
   <main class="loading-page">
+    <button class="theme-toggle-float" on:click={toggleTheme} aria-label="Toggle theme">
+      {#if theme === 'dark'}
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      {:else}
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      {/if}
+    </button>
     <div class="loading-card">
       <div class="loading-topic">{currentTopic}</div>
-
       {#if jobStatus === 'error'}
         <div class="load-error">{jobError || 'Pipeline failed.'}</div>
         <button class="retry-btn" on:click={resetToInput}>Try again</button>
@@ -202,25 +236,49 @@
 <!-- ── RESULTS PHASE ───────────────────────────────────────── -->
 {:else if phase === 'results'}
   <div class="results-root">
+
     <!-- Top bar -->
     <header class="results-bar">
       <span class="results-topic">{currentTopic}</span>
-      <span class="results-meta">{points.length} points · {[...new Set(points.map(p => p.cluster_id))].length} clusters</span>
-      {#if exportError}
-        <span class="export-error">{exportError}</span>
-      {/if}
-      <button class="export-btn" on:click={handleExport} disabled={exporting}>
-        {exporting ? 'Exporting…' : 'Export'}
-      </button>
-      <button class="new-btn" on:click={resetToInput}>New analysis</button>
+      <span class="results-meta">{points.length} points · {clusterCount} clusters</span>
+      <div class="bar-actions">
+        {#if exportError}<span class="export-error">{exportError}</span>{/if}
+        <button class="icon-btn export-btn" on:click={handleExport} disabled={exporting}>
+          {exporting ? 'Exporting…' : 'Export'}
+        </button>
+        <button class="icon-btn" on:click={resetToInput}>New analysis</button>
+        <button class="theme-btn" on:click={toggleTheme} aria-label="Toggle theme">
+          {#if theme === 'dark'}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          {:else}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          {/if}
+        </button>
+      </div>
     </header>
 
-    <!-- 4-panel grid -->
-    <div class="panels">
-      <!-- Top-left: Cluster Map -->
-      <section class="panel panel-map">
-        <div class="panel-title">Cluster Map</div>
-        <div class="panel-body">
+    <!-- Tab bar -->
+    <nav class="tab-bar">
+      {#each TABS as tab}
+        <button
+          class="tab-btn"
+          class:active={activeView === tab.id}
+          on:click={() => activeView = tab.id}
+        >
+          {tab.label}
+          {#if tab.id === 'outliers' && selectedCluster != null}
+            <span class="tab-dot"></span>
+          {/if}
+        </button>
+      {/each}
+    </nav>
+
+    <!-- Content area -->
+    <div class="content-area">
+
+      <!-- Main tabbed view -->
+      <div class="view-area">
+        <div class="view-panel" class:active={activeView === 'map'}>
           <ClusterMap
             {points}
             {selectedCluster}
@@ -228,61 +286,53 @@
             onSelectArticle={handleSelectArticle}
           />
         </div>
-      </section>
 
-      <!-- Top-right: Outlier Finder -->
-      <section class="panel panel-outliers">
-        <div class="panel-title">
-          Outliers
-          {#if selectedCluster != null}
-            <span class="filter-badge">cluster filter active</span>
-          {/if}
+        <div class="view-panel" class:active={activeView === 'temporal'}>
+          <div class="temporal-wrap">
+            <TemporalDrift {points} />
+          </div>
         </div>
-        <div class="panel-body">
+
+        <div class="view-panel" class:active={activeView === 'outliers'}>
           <OutlierFinder
             outliers={filteredOutliers}
             onSelectArticle={handleSelectArticle}
           />
         </div>
-      </section>
 
-      <!-- Bottom-left: Temporal Drift -->
-      <section class="panel panel-temporal">
-        <div class="panel-title">Temporal Drift</div>
-        <div class="panel-body temporal-body">
-          <TemporalDrift {points} />
+        <div class="view-panel" class:active={activeView === 'consensus'}>
+          <ConsensusBars
+            {points}
+            {selectedCluster}
+            onSelectCluster={handleSelectCluster}
+          />
         </div>
-      </section>
+      </div>
 
-      <!-- Bottom-right: Tabs (Consensus | Chat) -->
-      <section class="panel panel-tabs">
-        <div class="panel-title tabs-title">
-          <button
-            class="tab"
-            class:active={activeTab === 'consensus'}
-            on:click={() => activeTab = 'consensus'}
-          >Consensus</button>
-          <button
-            class="tab"
-            class:active={activeTab === 'chat'}
-            on:click={() => activeTab = 'chat'}
-          >Ask</button>
-        </div>
-        <div class="panel-body">
-          {#if activeTab === 'consensus'}
-            <ConsensusBars
-              {points}
-              {selectedCluster}
-              onSelectCluster={handleSelectCluster}
+      <!-- Persistent right sidebar -->
+      <aside class="right-sidebar">
+        <div class="sidebar-section sidebar-outliers">
+          <div class="sidebar-header">
+            Outliers
+            {#if selectedCluster != null}
+              <span class="filter-badge">filtered</span>
+            {/if}
+          </div>
+          <div class="sidebar-scroll">
+            <OutlierFinder
+              outliers={filteredOutliers}
+              onSelectArticle={handleSelectArticle}
             />
-          {:else}
-            <ChatPanel />
-          {/if}
+          </div>
         </div>
-      </section>
+        <div class="sidebar-section sidebar-chat">
+          <div class="sidebar-header">Ask</div>
+          <ChatPanel />
+        </div>
+      </aside>
     </div>
 
-    <!-- Article sidebar overlay -->
+    <!-- Article overlay -->
     <ArticleSidebar
       articleId={selectedArticleId}
       onClose={closeSidebar}
@@ -291,15 +341,79 @@
 {/if}
 
 <style>
-  /* ── Global ────────────────────────────── */
+  /* ── CSS Variables ──────────────────────────────────────── */
+  :global(:root) {
+    --bg: #0f0f13;
+    --surface: #1a1a24;
+    --surface-2: #15151f;
+    --surface-3: #13131e;
+    --border: #161620;
+    --border-2: #232336;
+    --border-3: #2e2e40;
+    --track: #1c1c28;
+    --text: #e8e8f0;
+    --text-2: #c8c8d8;
+    --text-3: #888888;
+    --text-4: #555555;
+    --text-5: #444444;
+    --text-6: #333333;
+    --accent: #5a7fff;
+    --accent-h: #7090ff;
+    --accent-t: rgba(90,127,255,0.13);
+    --err: #ff6b6b;
+  }
+  :global([data-theme="light"]) {
+    --bg: #f3f3f8;
+    --surface: #ffffff;
+    --surface-2: #ededf4;
+    --surface-3: #ffffff;
+    --border: #e4e4f0;
+    --border-2: #d4d4e4;
+    --border-3: #c4c4d8;
+    --track: #e8e8f4;
+    --text: #14141f;
+    --text-2: #30304e;
+    --text-3: #60607e;
+    --text-4: #80809a;
+    --text-5: #9090a8;
+    --text-6: #a8a8bc;
+    --accent: #3d5ce8;
+    --accent-h: #2d4cd8;
+    --accent-t: rgba(61,92,232,0.12);
+    --err: #c83030;
+  }
+
+  :global(*, *::before, *::after) { box-sizing: border-box; }
+
   :global(body) {
     margin: 0;
     font-family: system-ui, sans-serif;
-    background: #0f0f13;
-    color: #e8e8f0;
+    background: var(--bg);
+    color: var(--text);
     height: 100vh;
     overflow: hidden;
+    transition: background 0.2s, color 0.2s;
   }
+
+  /* ── Theme toggle (floating, input/loading pages) ────────── */
+  .theme-toggle-float {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border-2);
+    border-radius: 6px;
+    color: var(--text-3);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 50;
+    transition: background 0.1s, color 0.1s;
+  }
+  .theme-toggle-float:hover { color: var(--text); background: var(--surface-2); }
 
   /* ── Input page ─────────────────────────── */
   .input-page {
@@ -307,7 +421,6 @@
     margin: 0 auto;
     padding: 4rem 2rem;
     height: 100vh;
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -321,9 +434,10 @@
     font-weight: 700;
     margin: 0 0 0.5rem;
     letter-spacing: -0.03em;
+    color: var(--text);
   }
   header p {
-    color: #888;
+    color: var(--text-3);
     font-size: 1.1rem;
     margin: 0;
   }
@@ -335,20 +449,20 @@
     flex: 1;
     padding: 0.8rem 1rem;
     font-size: 1rem;
-    background: #1a1a24;
-    border: 1px solid #2e2e40;
+    background: var(--surface);
+    border: 1px solid var(--border-3);
     border-radius: 8px;
-    color: #e8e8f0;
+    color: var(--text);
     outline: none;
     transition: border-color 0.15s;
   }
-  input[type="text"]:focus { border-color: #5a7fff; }
-  input[type="text"]::placeholder { color: #555; }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]::placeholder { color: var(--text-5); }
   button[type="submit"] {
     padding: 0.8rem 1.5rem;
     font-size: 1rem;
     font-weight: 600;
-    background: #5a7fff;
+    background: var(--accent);
     color: white;
     border: none;
     border-radius: 8px;
@@ -356,10 +470,10 @@
     transition: background 0.15s;
     white-space: nowrap;
   }
-  button[type="submit"]:hover:not(:disabled) { background: #7090ff; }
+  button[type="submit"]:hover:not(:disabled) { background: var(--accent-h); }
   button[type="submit"]:disabled {
-    background: #2e2e40;
-    color: #555;
+    background: var(--border-3);
+    color: var(--text-5);
     cursor: not-allowed;
   }
 
@@ -378,47 +492,48 @@
   .loading-topic {
     font-size: 1rem;
     font-weight: 600;
-    color: #c8c8d8;
+    color: var(--text-2);
     margin-bottom: 1.5rem;
     line-height: 1.4;
   }
   .load-status {
     font-size: 0.82rem;
-    color: #555;
+    color: var(--text-5);
     margin-bottom: 12px;
   }
   .progress-track {
     height: 3px;
-    background: #1c1c28;
+    background: var(--border);
     border-radius: 2px;
     overflow: hidden;
     margin-bottom: 8px;
   }
   .progress-fill {
     height: 100%;
-    background: #5a7fff;
+    background: var(--accent);
     border-radius: 2px;
     transition: width 0.5s ease;
   }
   .progress-pct {
     font-size: 0.72rem;
-    color: #333;
+    color: var(--text-6);
   }
   .load-error {
     font-size: 0.85rem;
-    color: #ff6b6b;
+    color: var(--err);
     margin-bottom: 16px;
   }
   .retry-btn {
-    background: #2a2a40;
-    border: 1px solid #3a3a55;
-    color: #888;
+    background: var(--surface);
+    border: 1px solid var(--border-3);
+    color: var(--text-3);
     border-radius: 6px;
     padding: 8px 18px;
     font-size: 0.85rem;
     cursor: pointer;
+    transition: background 0.1s, color 0.1s;
   }
-  .retry-btn:hover { background: #32324a; color: #c8c8d8; }
+  .retry-btn:hover { background: var(--surface-2); color: var(--text-2); }
 
   /* ── Results layout ──────────────────────── */
   .results-root {
@@ -427,140 +542,196 @@
     height: 100vh;
     overflow: hidden;
   }
+
+  /* Top bar */
   .results-bar {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 0 16px;
-    height: 44px;
-    border-bottom: 1px solid #161620;
+    gap: 10px;
+    padding: 0 14px;
+    height: 42px;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
   .results-topic {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 600;
-    color: #c8c8d8;
+    color: var(--text-2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
+    min-width: 0;
   }
   .results-meta {
-    font-size: 0.72rem;
-    color: #444;
+    font-size: 0.7rem;
+    color: var(--text-5);
     white-space: nowrap;
+    flex-shrink: 0;
   }
-  .new-btn {
-    background: none;
-    border: 1px solid #2a2a40;
-    border-radius: 5px;
-    color: #666;
-    font-size: 0.75rem;
-    padding: 5px 12px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.1s, color 0.1s;
+  .bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
   }
-  .new-btn:hover { background: #15151f; color: #c8c8d8; }
-
-  .export-btn {
-    background: none;
-    border: 1px solid #2a2a40;
-    border-radius: 5px;
-    color: #666;
-    font-size: 0.75rem;
-    padding: 5px 12px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.1s, color 0.1s;
-  }
-  .export-btn:hover:not(:disabled) { background: #15151f; color: #c8c8d8; }
-  .export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .export-error {
-    font-size: 0.72rem;
-    color: #ff6b6b;
+    font-size: 0.7rem;
+    color: var(--err);
     white-space: nowrap;
   }
+  .icon-btn {
+    background: none;
+    border: 1px solid var(--border-2);
+    border-radius: 5px;
+    color: var(--text-4);
+    font-size: 0.72rem;
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.1s, color 0.1s;
+  }
+  .icon-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--text-2); }
+  .icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .theme-btn {
+    background: none;
+    border: 1px solid var(--border-2);
+    border-radius: 5px;
+    color: var(--text-3);
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+    flex-shrink: 0;
+  }
+  .theme-btn:hover { background: var(--surface-2); color: var(--text); }
 
-  /* ── Panels ──────────────────────────────── */
-  .panels {
+  /* Tab bar */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--bg);
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-5);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0 16px;
+    height: 34px;
+    cursor: pointer;
+    transition: color 0.12s, border-color 0.12s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text-3); }
+  .tab-btn.active {
+    color: var(--text-2);
+    border-bottom-color: var(--accent);
+  }
+  .tab-dot {
+    width: 5px;
+    height: 5px;
+    background: var(--accent);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Content area (main view + sidebar) */
+  .content-area {
     flex: 1;
     min-height: 0;
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    grid-template-rows: 1fr 1fr;
-    gap: 0;
+    display: flex;
+    overflow: hidden;
   }
-  .panel {
+
+  /* Tabbed main view */
+  .view-area {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+    border-right: 1px solid var(--border);
+  }
+  .view-panel {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+    overflow: hidden;
+  }
+  .view-panel.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* Temporal needs flex column for chart + controls */
+  .temporal-wrap {
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid #161620;
-    border-bottom: 1px solid #161620;
+    overflow: hidden;
+  }
+
+  /* Right sidebar */
+  .right-sidebar {
+    width: 300px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-section {
+    display: flex;
+    flex-direction: column;
     min-height: 0;
     overflow: hidden;
   }
-  .panel:last-child { border-bottom: none; }
-  .panel-map { grid-column: 1; grid-row: 1; }
-  .panel-outliers { grid-column: 2; grid-row: 1; border-right: none; }
-  .panel-temporal { grid-column: 1; grid-row: 2; border-bottom: none; }
-  .panel-tabs { grid-column: 2; grid-row: 2; border-right: none; border-bottom: none; }
-
-  .panel-title {
-    font-size: 0.63rem;
+  .sidebar-outliers {
+    flex: 4;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-chat {
+    flex: 6;
+  }
+  .sidebar-header {
+    font-size: 0.62rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.09em;
-    color: #333;
-    padding: 7px 14px;
-    border-bottom: 1px solid #161620;
+    color: var(--text-6);
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
   }
   .filter-badge {
-    font-size: 0.6rem;
-    background: #5a7fff22;
-    color: #5a7fff;
+    font-size: 0.58rem;
+    background: var(--accent-t);
+    color: var(--accent);
     border-radius: 3px;
     padding: 1px 5px;
     text-transform: none;
     letter-spacing: 0;
     font-weight: 500;
   }
-
-  .panel-body {
+  .sidebar-scroll {
     flex: 1;
     min-height: 0;
     overflow: hidden;
-  }
-  .temporal-body {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  /* ── Tabs title ──────────────────────────── */
-  .tabs-title {
-    padding: 0;
-  }
-  .tab {
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    color: #333;
-    font-size: 0.63rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.09em;
-    padding: 7px 14px;
-    cursor: pointer;
-    transition: color 0.1s, border-color 0.1s;
-    height: 100%;
-  }
-  .tab:hover { color: #888; }
-  .tab.active {
-    color: #c8c8d8;
-    border-bottom-color: #5a7fff;
   }
 </style>

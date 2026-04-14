@@ -98,14 +98,14 @@
     flex-direction: column;
     gap: 4px;
     padding: 8px 10px;
-    border-bottom: 1px solid #161620;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
   .preset-btn {
-    background: #15151f;
-    border: 1px solid #232336;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
     border-radius: 5px;
-    color: #888;
+    color: var(--text-3);
     font-size: 0.68rem;
     padding: 5px 8px;
     text-align: left;
@@ -114,8 +114,8 @@
     transition: background 0.1s, color 0.1s;
   }
   .preset-btn:hover:not(:disabled) {
-    background: #1e1e2e;
-    color: #c8c8d8;
+    background: var(--surface);
+    color: var(--text-2);
   }
   .preset-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .output {
@@ -126,41 +126,41 @@
   }
   .thinking, .empty {
     font-size: 0.78rem;
-    color: #444;
+    color: var(--text-5);
     text-align: center;
     padding: 1.5rem 0;
   }
-  .thinking { color: #5a7fff; }
+  .thinking { color: var(--accent); }
   .error {
     font-size: 0.78rem;
-    color: #ff6b6b;
+    color: var(--err);
   }
   .retry-btn {
     margin-top: 8px;
-    background: #1e1e2e;
-    border: 1px solid #2e2e44;
+    background: var(--surface);
+    border: 1px solid var(--border-3);
     border-radius: 5px;
-    color: #888;
+    color: var(--text-3);
     font-size: 0.75rem;
     padding: 5px 12px;
     cursor: pointer;
     transition: background 0.1s, color 0.1s;
   }
-  .retry-btn:hover { background: #28283e; color: #c8c8d8; }
+  .retry-btn:hover { background: var(--surface-2); color: var(--text-2); }
   .answer {
     font-size: 0.82rem;
-    color: #c8c8d8;
+    color: var(--text-2);
     line-height: 1.65;
     white-space: pre-wrap;
   }
   .citations {
     margin-top: 12px;
-    border-top: 1px solid #161620;
+    border-top: 1px solid var(--border);
     padding-top: 10px;
   }
   .cit-label {
     font-size: 0.65rem;
-    color: #444;
+    color: var(--text-5);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 6px;
@@ -172,12 +172,12 @@
     gap: 6px;
     padding: 4px 0;
     text-decoration: none;
-    border-bottom: 1px solid #0d0d14;
+    border-bottom: 1px solid var(--border);
   }
-  .cit:hover .cit-title { color: #5a7fff; }
+  .cit:hover .cit-title { color: var(--accent); }
   .cit-title {
     font-size: 0.72rem;
-    color: #888;
+    color: var(--text-3);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -186,7 +186,7 @@
   }
   .cit-domain {
     font-size: 0.65rem;
-    color: #444;
+    color: var(--text-5);
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -194,16 +194,16 @@
     display: flex;
     gap: 6px;
     padding: 8px;
-    border-top: 1px solid #161620;
+    border-top: 1px solid var(--border);
     flex-shrink: 0;
     align-items: flex-end;
   }
   textarea {
     flex: 1;
-    background: #15151f;
-    border: 1px solid #232336;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
     border-radius: 6px;
-    color: #e0e0f0;
+    color: var(--text);
     font-size: 0.8rem;
     padding: 7px 10px;
     resize: none;
@@ -212,11 +212,11 @@
     outline: none;
     transition: border-color 0.15s;
   }
-  textarea:focus { border-color: #5a7fff; }
-  textarea::placeholder { color: #444; }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--text-5); }
   textarea:disabled { opacity: 0.5; }
   .send {
-    background: #5a7fff;
+    background: var(--accent);
     border: none;
     border-radius: 6px;
     color: white;
@@ -230,6 +230,6 @@
     flex-shrink: 0;
     transition: background 0.1s;
   }
-  .send:hover:not(:disabled) { background: #7090ff; }
-  .send:disabled { background: #2a2a40; color: #444; cursor: not-allowed; }
+  .send:hover:not(:disabled) { background: var(--accent-h); }
+  .send:disabled { background: var(--border-3); color: var(--text-5); cursor: not-allowed; }
 </style>

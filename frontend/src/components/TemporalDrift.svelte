@@ -197,11 +197,6 @@
 {/if}
 
 <style>
-  :global(.temporal-body) {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
   .wrap {
     width: 100%;
     flex: 1;
@@ -215,7 +210,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #333;
+    color: var(--text-6);
     font-size: 0.85rem;
   }
   .controls {
@@ -224,28 +219,28 @@
     align-items: center;
     gap: 8px;
     padding: 0 12px;
-    border-top: 1px solid #161620;
+    border-top: 1px solid var(--border);
     flex-shrink: 0;
   }
   .play-btn {
     background: none;
     border: none;
-    color: #5a7fff;
+    color: var(--accent);
     font-size: 0.85rem;
     cursor: pointer;
     padding: 4px 6px;
     border-radius: 4px;
     line-height: 1;
   }
-  .play-btn:hover { background: #15151f; }
+  .play-btn:hover { background: var(--surface-2); }
   .slider {
     flex: 1;
-    accent-color: #5a7fff;
+    accent-color: var(--accent);
     cursor: pointer;
   }
   .month-label {
     font-size: 0.7rem;
-    color: #666;
+    color: var(--text-3);
     white-space: nowrap;
     width: 72px;
     text-align: right;

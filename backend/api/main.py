@@ -109,6 +109,7 @@ def get_corpus():
             SELECT
                 p.chunk_id,
                 c.article_id,
+                c.child_text,
                 a.url,
                 a.title,
                 a.domain,

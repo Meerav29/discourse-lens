@@ -187,13 +187,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #333;
+    color: var(--text-6);
     font-size: 0.85rem;
   }
   .tip {
     position: fixed;
-    background: #1a1a28;
-    border: 1px solid #32324a;
+    background: var(--surface);
+    border: 1px solid var(--border-2);
     border-radius: 6px;
     padding: 7px 11px;
     pointer-events: none;
@@ -204,7 +204,7 @@
   .tip-title {
     font-size: 0.82rem;
     font-weight: 500;
-    color: #e0e0f0;
+    color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -212,6 +212,6 @@
   }
   .tip-meta {
     font-size: 0.72rem;
-    color: #666;
+    color: var(--text-3);
   }
 </style>

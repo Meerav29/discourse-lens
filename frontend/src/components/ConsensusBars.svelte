@@ -17,35 +17,23 @@
   $: clusters = computeClusters(points);
 
   function computeClusters(pts) {
-    // One point per article (deduplicate by article_id + cluster_id)
-    const seen = new Set();
-    const articles = [];
-    for (const p of pts) {
-      const key = p.article_id;
-      if (!seen.has(key)) {
-        seen.add(key);
-        articles.push(p);
-      }
-    }
-
-    // Group by cluster
+    // Group all chunk points by cluster — each point carries its own child_text
     const byCluster = new Map();
-    for (const a of articles) {
-      const cid = a.cluster_id;
+    for (const p of pts) {
+      const cid = p.cluster_id;
       if (!byCluster.has(cid)) {
-        byCluster.set(cid, { id: cid, label: a.cluster_label || `cluster ${cid}`, titles: [] });
+        byCluster.set(cid, { id: cid, label: p.cluster_label || `cluster ${cid}`, texts: [] });
       }
-      if (a.title) byCluster.get(cid).titles.push(a.title.toLowerCase());
+      if (p.child_text) byCluster.get(cid).texts.push(p.child_text.toLowerCase());
     }
 
-    const totalDocs = articles.length || 1;
+    const totalChunks = pts.length || 1;
 
-    // Compute TF-IDF-like term scores per cluster
-    // Global doc frequency
+    // Global document frequency (one "doc" = one chunk)
     const globalDF = new Map();
-    for (const a of articles) {
-      if (!a.title) continue;
-      const terms = tokenize(a.title.toLowerCase());
+    for (const p of pts) {
+      if (!p.child_text) continue;
+      const terms = tokenize(p.child_text.toLowerCase());
       for (const t of new Set(terms)) {
         globalDF.set(t, (globalDF.get(t) || 0) + 1);
       }
@@ -53,17 +41,17 @@
 
     return [...byCluster.values()].map(c => {
       const tf = new Map();
-      const clusterDocs = c.titles.length || 1;
-      for (const title of c.titles) {
-        for (const t of tokenize(title)) {
+      const clusterChunks = c.texts.length || 1;
+      for (const text of c.texts) {
+        for (const t of tokenize(text)) {
           tf.set(t, (tf.get(t) || 0) + 1);
         }
       }
 
       const scored = [...tf.entries()]
         .map(([term, count]) => {
-          const idf = Math.log(totalDocs / ((globalDF.get(term) || 1)));
-          return { term, score: (count / clusterDocs) * idf };
+          const idf = Math.log(totalChunks / ((globalDF.get(term) || 1)));
+          return { term, score: (count / clusterChunks) * idf };
         })
         .filter(d => d.score > 0)
         .sort((a, b) => b.score - a.score)
@@ -134,7 +122,7 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: #333;
+    color: var(--text-6);
     font-size: 0.85rem;
   }
   .list {
@@ -142,11 +130,11 @@
   }
   .cluster {
     padding: 8px 14px;
-    border-bottom: 1px solid #161620;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
     transition: background 0.1s, opacity 0.15s;
   }
-  .cluster:hover { background: #15151f; }
+  .cluster:hover { background: var(--surface-2); }
   .cluster.dim { opacity: 0.25; }
   .cluster-label {
     font-size: 0.62rem;
@@ -166,7 +154,7 @@
   }
   .term {
     font-size: 0.68rem;
-    color: #888;
+    color: var(--text-3);
     width: 80px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -176,7 +164,7 @@
   .track {
     flex: 1;
     height: 3px;
-    background: #1c1c28;
+    background: var(--track);
     border-radius: 2px;
     overflow: hidden;
   }
