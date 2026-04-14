@@ -1,20 +1,20 @@
 import os
 
 import httpx
-import anthropic
 from dotenv import load_dotenv
+
+from backend.claude_client import get_client, get_model
 
 load_dotenv()
 
-_anthropic = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 _BRAVE_API_KEY = os.getenv("BRAVE_API_KEY")
 _MAX_ARTICLES = int(os.getenv("MAX_ARTICLES", "120"))
 
 
 def generate_queries(topic: str) -> list[str]:
     """Use Claude to generate 6 diverse search queries for the topic."""
-    response = _anthropic.messages.create(
-        model="claude-sonnet-4-6",
+    response = get_client().messages.create(
+        model=get_model(),
         max_tokens=512,
         messages=[{
             "role": "user",
