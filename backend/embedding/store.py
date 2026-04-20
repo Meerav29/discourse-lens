@@ -14,6 +14,7 @@ import pyarrow as pa
 
 LANCE_PATH = os.getenv("LANCE_PATH", "./data/vectors")
 TABLE_NAME = "embeddings"
+MAX_ARTICLES = int(os.getenv("MAX_ARTICLES", "120"))
 
 
 def _get_table(db: lancedb.DBConnection) -> lancedb.table.Table:
