@@ -2,6 +2,9 @@ import asyncio
 
 from playwright.async_api import async_playwright
 
+_MAX_ATTEMPTS = 2  # 1 retry on transient failure
+_RETRY_BACKOFF_SECONDS = 2.0
+
 
 async def _crawl_async(urls: list[str]) -> list[dict]:
     semaphore = asyncio.Semaphore(5)
@@ -13,17 +16,21 @@ async def _crawl_async(urls: list[str]) -> list[dict]:
             if url.lower().endswith(".pdf"):
                 return {"url": url, "html": None}
             async with semaphore:
-                page = None
-                try:
-                    page = await browser.new_page()
-                    await page.goto(url, timeout=10_000, wait_until="domcontentloaded")
-                    html = await page.content()
-                    return {"url": url, "html": html}
-                except Exception:
-                    return {"url": url, "html": None}
-                finally:
-                    if page:
-                        await page.close()
+                for attempt in range(_MAX_ATTEMPTS):
+                    page = None
+                    try:
+                        page = await browser.new_page()
+                        await page.goto(url, timeout=10_000, wait_until="domcontentloaded")
+                        html = await page.content()
+                        return {"url": url, "html": html}
+                    except Exception:
+                        if attempt + 1 == _MAX_ATTEMPTS:
+                            return {"url": url, "html": None}
+                        await asyncio.sleep(_RETRY_BACKOFF_SECONDS)
+                    finally:
+                        if page:
+                            await page.close()
+                return {"url": url, "html": None}
 
         results = await asyncio.gather(*[_scrape(url) for url in urls])
         await browser.close()
