@@ -48,6 +48,11 @@ def init_db() -> None:
     schema = (Path(__file__).parent.parent / "db" / "schema.sql").read_text()
     conn = get_db()
     conn.executescript(schema)
+    try:
+        conn.execute("ALTER TABLE jobs ADD COLUMN warning TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists (pre-existing db file)
     conn.commit()
     conn.close()
 
@@ -301,6 +306,34 @@ def get_job(job_id: str):
     return dict(row)
 
 
+@app.get("/api/jobs/{job_id}/stream")
+async def stream_job(job_id: str):
+    from fastapi.responses import StreamingResponse
+
+    async def event_generator():
+        last_payload = None
+        while True:
+            conn = get_db()
+            row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            conn.close()
+
+            if row is None:
+                yield f"event: error\ndata: {json_lib.dumps({'error': 'Job not found', 'code': 'NOT_FOUND'})}\n\n"
+                return
+
+            payload = json_lib.dumps(dict(row))
+            if payload != last_payload:
+                yield f"data: {payload}\n\n"
+                last_payload = payload
+
+            if row["status"] in ("done", "error"):
+                return
+
+            await asyncio.sleep(1)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 # ---------------------------------------------------------------------------
 # Ingestion pipeline (background task)
 # ---------------------------------------------------------------------------
@@ -459,7 +492,17 @@ async def run_pipeline(job_id: str, topic: str) -> None:
 
         await asyncio.to_thread(_project)
 
-        update_job(job_id, status="done", progress=100, article_count=ok_count)
+        warning = None
+        if ok_count < 30:
+            warning = (
+                f"Only {ok_count} articles were successfully indexed. "
+                "Results may be sparse — try a broader or more general topic."
+            )
+
+        update_job(
+            job_id, status="done", progress=100,
+            article_count=ok_count, warning=warning,
+        )
 
     except Exception as e:
         import traceback

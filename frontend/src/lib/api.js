@@ -17,6 +17,17 @@ export const api = {
     body: JSON.stringify({ topic }),
   }),
   getJob: (id) => apiFetch(`/api/jobs/${id}`),
+  streamJob: (id, onUpdate, onError) => {
+    const source = new EventSource(`${BASE}/api/jobs/${id}/stream`);
+    source.onmessage = (e) => onUpdate(JSON.parse(e.data));
+    source.addEventListener('error', (e) => {
+      if (e.data) {
+        try { onError?.(JSON.parse(e.data)); } catch { /* ignore parse errors */ }
+      }
+    });
+    source.onerror = () => { /* connection dropped or stream closed by server */ };
+    return source;
+  },
   getCorpus: () => apiFetch('/api/corpus'),
   getClusters: () => apiFetch('/api/clusters'),
   getOutliers: (clusterId = null) => apiFetch(

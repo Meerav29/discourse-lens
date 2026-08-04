@@ -1,4 +1,5 @@
 import os
+import time
 
 import httpx
 from dotenv import load_dotenv
@@ -31,24 +32,40 @@ def generate_queries(topic: str) -> list[str]:
     return queries[:6]
 
 
-def brave_search(query: str, count: int = 20) -> list[str]:
-    """Call Brave Search API and return a list of result URLs."""
+def brave_search(query: str, count: int = 20, max_retries: int = 3) -> list[str]:
+    """Call Brave Search API and return a list of result URLs.
+
+    Retries with exponential backoff on rate limiting (429) and transient
+    server/network errors; other 4xx errors fail immediately.
+    """
     headers = {
         "Accept": "application/json",
         "Accept-Encoding": "gzip",
         "X-Subscription-Token": _BRAVE_API_KEY,
     }
     params = {"q": query, "count": count, "text_decorations": "false"}
-    with httpx.Client(timeout=15) as client:
-        resp = client.get(
-            "https://api.search.brave.com/res/v1/web/search",
-            headers=headers,
-            params=params,
-        )
-        resp.raise_for_status()
-    data = resp.json()
-    results = data.get("web", {}).get("results", [])
-    return [r["url"] for r in results if "url" in r]
+
+    for attempt in range(max_retries + 1):
+        try:
+            with httpx.Client(timeout=15) as client:
+                resp = client.get(
+                    "https://api.search.brave.com/res/v1/web/search",
+                    headers=headers,
+                    params=params,
+                )
+            if resp.status_code == 429 or resp.status_code >= 500:
+                raise httpx.HTTPStatusError(
+                    f"retryable status {resp.status_code}", request=resp.request, response=resp
+                )
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("web", {}).get("results", [])
+            return [r["url"] for r in results if "url" in r]
+        except (httpx.HTTPStatusError, httpx.TransportError):
+            if attempt == max_retries:
+                raise
+            time.sleep(2 ** attempt)  # 1s, 2s, 4s
+    return []
 
 
 def collect_urls(topic: str) -> list[str]:
