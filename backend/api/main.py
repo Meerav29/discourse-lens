@@ -315,6 +315,16 @@ async def run_pipeline(job_id: str, topic: str) -> None:
     from backend.processing.dedup import mark_duplicates
 
     try:
+        # Clear previous corpus before starting fresh
+        conn = get_db()
+        conn.execute("DELETE FROM projections")
+        conn.execute("DELETE FROM chunks")
+        conn.execute("DELETE FROM articles")
+        conn.commit()
+        conn.close()
+        from backend.embedding.store import clear_embeddings
+        clear_embeddings()
+
         # Step 1: generate queries and search Brave
         update_job(job_id, status="crawling", progress=5)
         urls = await asyncio.to_thread(collect_urls, topic)

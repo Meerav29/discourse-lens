@@ -1,26 +1,34 @@
 <script>
   import { api } from '../lib/api.js';
   import { PRESET_QUERIES } from '../lib/presets.js';
+  import { marked } from 'marked';
+  import { afterUpdate } from 'svelte';
+
+  marked.setOptions({ breaks: true, gfm: true });
 
   let query = '';
-  let lastQuery = '';
   let loading = false;
-  let answer = null;
-  let citations = [];
   let error = null;
+  let messages = []; // { role: 'user'|'assistant', text, citations }
+
+  let historyEl;
+
+  afterUpdate(() => {
+    if (historyEl) {
+      historyEl.scrollTop = historyEl.scrollHeight;
+    }
+  });
 
   async function submit(q) {
     if (!q.trim() || loading) return;
-    query = q;
-    lastQuery = q;
-    loading = true;
-    answer = null;
-    citations = [];
+    const userText = q.trim();
+    query = '';
     error = null;
+    messages = [...messages, { role: 'user', text: userText }];
+    loading = true;
     try {
-      const res = await api.chat(q);
-      answer = res.answer;
-      citations = res.citations || [];
+      const res = await api.chat(userText);
+      messages = [...messages, { role: 'assistant', text: res.answer, citations: res.citations || [] }];
     } catch (e) {
       error = e.message;
     } finally {
@@ -34,40 +42,48 @@
       submit(query);
     }
   }
+
+  function renderMd(text) {
+    return marked.parse(text || '');
+  }
 </script>
 
-<div class="panel">
+<div class="chat-panel">
   <div class="presets">
     {#each PRESET_QUERIES as q}
-      <button
-        class="preset-btn"
-        on:click={() => submit(q)}
-        disabled={loading}
-      >{q}</button>
+      <button class="preset-btn" on:click={() => submit(q)} disabled={loading}>{q}</button>
     {/each}
   </div>
 
-  <div class="output">
-    {#if loading}
-      <div class="thinking">Searching corpus…</div>
-    {:else if error}
-      <div class="error">{error}</div>
-      <button class="retry-btn" on:click={() => submit(lastQuery)}>Try again</button>
-    {:else if answer}
-      <div class="answer">{answer}</div>
-      {#if citations.length > 0}
-        <div class="citations">
-          <div class="cit-label">Sources</div>
-          {#each citations as c}
-            <a class="cit" href={c.url} target="_blank" rel="noopener noreferrer">
-              <span class="cit-title">{c.title || c.domain}</span>
-              <span class="cit-domain">{c.domain}</span>
-            </a>
-          {/each}
+  <div class="history" bind:this={historyEl}>
+    {#if messages.length === 0 && !loading}
+      <div class="empty">Ask a question about the indexed corpus.</div>
+    {/if}
+    {#each messages as msg}
+      {#if msg.role === 'user'}
+        <div class="msg user-msg">{msg.text}</div>
+      {:else}
+        <div class="msg assistant-msg">
+          <div class="md-body">{@html renderMd(msg.text)}</div>
+          {#if msg.citations && msg.citations.length > 0}
+            <div class="citations">
+              <div class="cit-label">Sources</div>
+              {#each msg.citations as c}
+                <a class="cit" href={c.url} target="_blank" rel="noopener noreferrer">
+                  <span class="cit-title">{c.title || c.domain}</span>
+                  <span class="cit-domain">{c.domain}</span>
+                </a>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
-    {:else}
-      <div class="empty">Ask a question about the indexed corpus.</div>
+    {/each}
+    {#if loading}
+      <div class="thinking">Searching corpus…</div>
+    {/if}
+    {#if error}
+      <div class="error-msg">{error}</div>
     {/if}
   </div>
 
@@ -86,13 +102,14 @@
 </div>
 
 <style>
-  .panel {
+  .chat-panel {
     width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
+
   .presets {
     display: flex;
     flex-direction: column;
@@ -113,53 +130,107 @@
     line-height: 1.35;
     transition: background 0.1s, color 0.1s;
   }
-  .preset-btn:hover:not(:disabled) {
-    background: var(--surface);
-    color: var(--text-2);
-  }
+  .preset-btn:hover:not(:disabled) { background: var(--surface); color: var(--text-2); }
   .preset-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .output {
+
+  .history {
     flex: 1;
-    overflow-y: auto;
-    padding: 12px 12px 8px;
     min-height: 0;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
-  .thinking, .empty {
+  .empty {
     font-size: 0.78rem;
     color: var(--text-5);
     text-align: center;
-    padding: 1.5rem 0;
+    padding: 2rem 0;
   }
-  .thinking { color: var(--accent); }
-  .error {
+  .thinking {
+    font-size: 0.78rem;
+    color: var(--accent);
+    text-align: center;
+    padding: 0.5rem 0;
+  }
+  .error-msg {
     font-size: 0.78rem;
     color: var(--err);
+    padding: 4px 0;
   }
-  .retry-btn {
-    margin-top: 8px;
-    background: var(--surface);
-    border: 1px solid var(--border-3);
-    border-radius: 5px;
-    color: var(--text-3);
-    font-size: 0.75rem;
-    padding: 5px 12px;
-    cursor: pointer;
-    transition: background 0.1s, color 0.1s;
+
+  .msg { max-width: 100%; }
+
+  .user-msg {
+    align-self: flex-end;
+    background: var(--accent-t);
+    border: 1px solid var(--accent);
+    border-radius: 8px 8px 2px 8px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    color: var(--text-2);
+    line-height: 1.5;
+    max-width: 85%;
   }
-  .retry-btn:hover { background: var(--surface-2); color: var(--text-2); }
-  .answer {
+
+  .assistant-msg {
+    align-self: flex-start;
+    width: 100%;
+  }
+
+  /* Markdown output styles */
+  .md-body {
     font-size: 0.82rem;
     color: var(--text-2);
     line-height: 1.65;
-    white-space: pre-wrap;
   }
+  :global(.md-body h1),
+  :global(.md-body h2),
+  :global(.md-body h3) {
+    color: var(--text);
+    font-weight: 600;
+    margin: 0.75em 0 0.35em;
+    line-height: 1.3;
+  }
+  :global(.md-body h1) { font-size: 1rem; }
+  :global(.md-body h2) { font-size: 0.92rem; }
+  :global(.md-body h3) { font-size: 0.86rem; }
+  :global(.md-body p) { margin: 0 0 0.6em; }
+  :global(.md-body p:last-child) { margin-bottom: 0; }
+  :global(.md-body ul),
+  :global(.md-body ol) {
+    margin: 0 0 0.6em 1.2em;
+    padding: 0;
+  }
+  :global(.md-body li) { margin-bottom: 0.25em; }
+  :global(.md-body strong) { color: var(--text); font-weight: 600; }
+  :global(.md-body em) { color: var(--text-3); font-style: italic; }
+  :global(.md-body code) {
+    background: var(--surface-2);
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 0.78rem;
+    font-family: monospace;
+    color: var(--accent);
+  }
+  :global(.md-body blockquote) {
+    border-left: 3px solid var(--border-3);
+    margin: 0 0 0.6em;
+    padding: 0 0 0 10px;
+    color: var(--text-3);
+  }
+  :global(.md-body a) { color: var(--accent); text-decoration: none; }
+  :global(.md-body a:hover) { text-decoration: underline; }
+  :global(.md-body hr) { border: none; border-top: 1px solid var(--border); margin: 0.8em 0; }
+
   .citations {
-    margin-top: 12px;
+    margin-top: 10px;
     border-top: 1px solid var(--border);
-    padding-top: 10px;
+    padding-top: 8px;
   }
   .cit-label {
-    font-size: 0.65rem;
+    font-size: 0.62rem;
     color: var(--text-5);
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -174,6 +245,7 @@
     text-decoration: none;
     border-bottom: 1px solid var(--border);
   }
+  .cit:last-child { border-bottom: none; }
   .cit:hover .cit-title { color: var(--accent); }
   .cit-title {
     font-size: 0.72rem;
@@ -190,6 +262,7 @@
     white-space: nowrap;
     flex-shrink: 0;
   }
+
   .input-row {
     display: flex;
     gap: 6px;
@@ -197,6 +270,7 @@
     border-top: 1px solid var(--border);
     flex-shrink: 0;
     align-items: flex-end;
+    background: var(--bg);
   }
   textarea {
     flex: 1;

@@ -118,6 +118,8 @@
   }
 
   function resetToInput() {
+    const confirmed = window.confirm('This will clear the current corpus. Continue?');
+    if (!confirmed) return;
     clearInterval(pollTimer);
     phase = 'input';
     topic = '';
@@ -177,6 +179,7 @@
     { id: 'temporal',  label: 'Temporal Drift' },
     { id: 'outliers',  label: 'Outliers'       },
     { id: 'consensus', label: 'Consensus'      },
+    { id: 'chat',      label: 'Ask'            },
   ];
 </script>
 
@@ -307,9 +310,13 @@
             onSelectCluster={handleSelectCluster}
           />
         </div>
+
+        <div class="view-panel" class:active={activeView === 'chat'}>
+          <ChatPanel />
+        </div>
       </div>
 
-      <!-- Persistent right sidebar -->
+      <!-- Persistent right sidebar (outliers only) -->
       <aside class="right-sidebar">
         <div class="sidebar-section sidebar-outliers">
           <div class="sidebar-header">
@@ -324,10 +331,6 @@
               onSelectArticle={handleSelectArticle}
             />
           </div>
-        </div>
-        <div class="sidebar-section sidebar-chat">
-          <div class="sidebar-header">Ask</div>
-          <ChatPanel />
         </div>
       </aside>
     </div>
@@ -662,7 +665,6 @@
     min-width: 0;
     position: relative;
     overflow: hidden;
-    border-right: 1px solid var(--border);
   }
   .view-panel {
     position: absolute;
@@ -687,11 +689,12 @@
 
   /* Right sidebar */
   .right-sidebar {
-    width: 300px;
+    width: 280px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    border-left: 1px solid var(--border);
   }
   .sidebar-section {
     display: flex;
@@ -700,11 +703,7 @@
     overflow: hidden;
   }
   .sidebar-outliers {
-    flex: 4;
-    border-bottom: 1px solid var(--border);
-  }
-  .sidebar-chat {
-    flex: 6;
+    flex: 1;
   }
   .sidebar-header {
     font-size: 0.62rem;

@@ -113,6 +113,13 @@ def update_cluster_ids(chunk_cluster_map: dict[str, int]) -> None:
     db.create_table(TABLE_NAME, data=records, schema=schema)
 
 
+def clear_embeddings() -> None:
+    """Drop and recreate the embeddings table, clearing all vectors."""
+    db = lancedb.connect(LANCE_PATH)
+    if TABLE_NAME in db.table_names():
+        db.drop_table(TABLE_NAME)
+
+
 def _normalise(rows: list[dict]) -> list[dict]:
     """Ensure all fields have correct Python types for Arrow ingestion."""
     out = []
