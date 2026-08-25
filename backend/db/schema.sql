@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   progress      INTEGER DEFAULT 0,  -- 0-100
   article_count INTEGER DEFAULT 0,
   error_msg     TEXT,
+  warning       TEXT,               -- non-fatal warning, e.g. low article yield
   created_ts    INTEGER,
   updated_ts    INTEGER
 );

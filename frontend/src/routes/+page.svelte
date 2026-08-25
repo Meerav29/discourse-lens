@@ -29,12 +29,13 @@
   // --- Input ---
   let topic = '';
 
-  // --- Job polling ---
+  // --- Job status (via SSE) ---
   let jobId = null;
   let jobStatus = null;
   let jobProgress = 0;
   let jobError = null;
-  let pollTimer = null;
+  let jobWarning = null;
+  let jobStream = null;
 
   // --- Corpus ---
   let points = [];
@@ -66,6 +67,7 @@
     jobStatus = 'queued';
     jobProgress = 0;
     jobError = null;
+    jobWarning = null;
     points = [];
     outliers = [];
     selectedCluster = null;
@@ -74,32 +76,35 @@
     try {
       const res = await api.startJob(currentTopic);
       jobId = res.job_id;
-      startPolling();
+      startStreaming();
     } catch (e) {
       jobError = e.message;
       jobStatus = 'error';
     }
   }
 
-  function startPolling() {
-    clearInterval(pollTimer);
-    pollTimer = setInterval(pollJob, 2000);
-  }
-
-  async function pollJob() {
-    if (!jobId) return;
-    try {
-      const job = await api.getJob(jobId);
-      jobStatus = job.status;
-      jobProgress = job.progress || 0;
-      if (job.status === 'done') {
-        clearInterval(pollTimer);
-        await loadResults();
-      } else if (job.status === 'error') {
-        clearInterval(pollTimer);
-        jobError = job.error_msg || 'Unknown error';
+  function startStreaming() {
+    jobStream?.close();
+    jobStream = api.streamJob(
+      jobId,
+      async (job) => {
+        jobStatus = job.status;
+        jobProgress = job.progress || 0;
+        jobWarning = job.warning || null;
+        if (job.status === 'done') {
+          jobStream.close();
+          await loadResults();
+        } else if (job.status === 'error') {
+          jobStream.close();
+          jobError = job.error_msg || 'Unknown error';
+        }
+      },
+      (err) => {
+        jobStream?.close();
+        jobStatus = 'error';
+        jobError = err.error || 'Lost connection to job stream';
       }
-    } catch (e) { /* transient — keep polling */ }
+    );
   }
 
   async function loadResults() {
@@ -120,13 +125,15 @@
   function resetToInput() {
     const confirmed = window.confirm('This will clear the current corpus. Continue?');
     if (!confirmed) return;
-    clearInterval(pollTimer);
+    jobStream?.close();
+    jobStream = null;
     phase = 'input';
     topic = '';
     jobId = null;
     jobStatus = null;
     jobProgress = 0;
     jobError = null;
+    jobWarning = null;
     points = [];
     outliers = [];
     selectedCluster = null;
@@ -239,6 +246,10 @@
 <!-- ── RESULTS PHASE ───────────────────────────────────────── -->
 {:else if phase === 'results'}
   <div class="results-root">
+
+    {#if jobWarning}
+      <div class="corpus-warning">{jobWarning}</div>
+    {/if}
 
     <!-- Top bar -->
     <header class="results-bar">
@@ -364,6 +375,8 @@
     --accent-h: #7090ff;
     --accent-t: rgba(90,127,255,0.13);
     --err: #ff6b6b;
+    --warn: #e8b64a;
+    --warn-t: rgba(232,182,74,0.13);
   }
   :global([data-theme="light"]) {
     --bg: #f3f3f8;
@@ -384,6 +397,8 @@
     --accent-h: #2d4cd8;
     --accent-t: rgba(61,92,232,0.12);
     --err: #c83030;
+    --warn: #a87515;
+    --warn-t: rgba(168,117,21,0.12);
   }
 
   :global(*, *::before, *::after) { box-sizing: border-box; }
@@ -544,6 +559,15 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
+  }
+
+  .corpus-warning {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    color: var(--warn);
+    background: var(--warn-t);
+    border-bottom: 1px solid var(--border);
   }
 
   /* Top bar */
