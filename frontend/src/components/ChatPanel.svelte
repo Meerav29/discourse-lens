@@ -9,6 +9,7 @@
   let query = '';
   let loading = false;
   let error = null;
+  let lastQuery = '';
   let messages = []; // { role: 'user'|'assistant', text, citations }
 
   let historyEl;
@@ -22,6 +23,7 @@
   async function submit(q) {
     if (!q.trim() || loading) return;
     const userText = q.trim();
+    lastQuery = userText;
     query = '';
     error = null;
     messages = [...messages, { role: 'user', text: userText }];
@@ -84,6 +86,7 @@
     {/if}
     {#if error}
       <div class="error-msg">{error}</div>
+      <button class="retry-btn" on:click={() => submit(lastQuery)}>Try again</button>
     {/if}
   </div>
 
@@ -159,6 +162,18 @@
     color: var(--err);
     padding: 4px 0;
   }
+  .retry-btn {
+    align-self: flex-start;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 5px;
+    color: var(--text-2);
+    font-size: 0.72rem;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .retry-btn:hover { background: var(--surface); }
 
   .msg { max-width: 100%; }
 
