@@ -18,7 +18,7 @@ from backend.config import settings
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 _SCHEMA = Path(__file__).parent / "schema.sql"
 
 # Analyses still in one of these states are being worked on by a pipeline.
@@ -40,13 +40,14 @@ def init_db(db_path: str | None = None) -> None:
     try:
         conn.execute("PRAGMA journal_mode = WAL")
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        if version < SCHEMA_VERSION and _table_exists(conn, "jobs"):
+        if version < 2 and _table_exists(conn, "jobs"):
             conn.close()
             _migrate_v1_to_v2(path)
             conn = connect(path)
-        else:
-            conn.executescript(_SCHEMA.read_text())
-            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        # v2 -> v3: new events table (created by the schema script) + stage_detail.
+        conn.executescript(_SCHEMA.read_text())
+        _ensure_column(conn, "analyses", "stage_detail", "TEXT")
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         placeholders = ",".join("?" for _ in RUNNING_STATUSES)
         conn.execute(
             f"UPDATE analyses SET status='error', error_msg=?, updated_ts=? "
@@ -56,6 +57,22 @@ def init_db(db_path: str | None = None) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def _schema_statements() -> list[str]:
+    """
+    schema.sql as individual statements, for running inside an explicit
+    transaction (executescript would commit first). Comments are stripped
+    before splitting so a ';' in a comment can't break a statement.
+    """
+    lines = [line.split("--", 1)[0] for line in _SCHEMA.read_text().splitlines()]
+    return [s.strip() for s in "\n".join(lines).split(";") if s.strip()]
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
+    columns = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
 def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
@@ -109,9 +126,8 @@ def _migrate_v1_to_v2(path: str) -> None:
         conn.execute("BEGIN")
         for table in ("articles", "chunks", "projections"):
             conn.execute(f"ALTER TABLE {table} RENAME TO {table}_v1")
-        for statement in _SCHEMA.read_text().split(";"):
-            if statement.strip():
-                conn.execute(statement)
+        for statement in _schema_statements():
+            conn.execute(statement)
 
         if analysis_id:
             conn.execute(
@@ -144,7 +160,7 @@ def _migrate_v1_to_v2(path: str) -> None:
 
         for table in ("projections_v1", "chunks_v1", "articles_v1", "jobs"):
             conn.execute(f"DROP TABLE {table}")
-        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.execute("PRAGMA user_version = 2")
         conn.commit()
     except Exception:
         conn.rollback()
@@ -153,6 +169,18 @@ def _migrate_v1_to_v2(path: str) -> None:
         conn.close()
 
     store.drop_legacy_table()
+
+
+def add_event(analysis_id: str, kind: str, message: str, url: str | None = None) -> None:
+    conn = connect()
+    try:
+        conn.execute(
+            "INSERT INTO analysis_events (analysis_id, ts, kind, message, url) VALUES (?,?,?,?,?)",
+            (analysis_id, int(time.time()), kind, message, url),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def update_analysis(analysis_id: str, **fields) -> None:

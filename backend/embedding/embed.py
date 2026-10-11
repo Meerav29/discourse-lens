@@ -9,7 +9,7 @@ Returns list of dicts with chunk_id + vector.
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 import httpx
 
@@ -80,12 +80,16 @@ def prepare_texts(texts: list[str], kind: str) -> list[str]:
     return [prefix + t for t in texts]
 
 
-def embed_chunks(chunks: list[dict], kind: str = "document") -> list[dict]:
+def embed_chunks(
+    chunks: list[dict],
+    kind: str = "document",
+    on_batch: Callable[[int, int], None] | None = None,
+) -> list[dict]:
     """
     Takes a list of chunk dicts (must have 'id' and 'child_text').
     kind: 'document' for corpus chunks, 'query' for search queries.
     Returns list of dicts: {chunk_id, vector}.
-    Processes in batches of BATCH_SIZE.
+    Processes in batches of BATCH_SIZE; on_batch(done, total) runs after each.
     """
     results: list[dict] = []
 
@@ -96,5 +100,7 @@ def embed_chunks(chunks: list[dict], kind: str = "document") -> list[dict]:
         vectors = embed_fn(texts)
         for chunk, vector in zip(batch, vectors, strict=True):
             results.append({"chunk_id": chunk["id"], "vector": vector})
+        if on_batch:
+            on_batch(len(results), len(chunks))
 
     return results

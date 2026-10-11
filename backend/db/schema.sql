@@ -1,4 +1,4 @@
--- Schema version 2 (PRAGMA user_version = 2): every row belongs to an analysis.
+-- Schema version 3 (PRAGMA user_version = 3): every row belongs to an analysis.
 -- Deleting an analysis cascades to its articles, chunks and projections
 -- (requires PRAGMA foreign_keys = ON, set by backend.db.connect).
 
@@ -6,8 +6,9 @@
 CREATE TABLE IF NOT EXISTS analyses (
   id            TEXT PRIMARY KEY,   -- uuid4
   topic         TEXT NOT NULL,
-  status        TEXT NOT NULL,      -- queued | crawling | processing | embedding | projecting | done | error
+  status        TEXT NOT NULL,      -- queued | crawling | processing | embedding | projecting | done | error | cancelled
   progress      INTEGER DEFAULT 0,  -- 0-100
+  stage_detail  TEXT,               -- e.g. "Crawled 47 of 112 pages"
   article_count INTEGER DEFAULT 0,
   error_msg     TEXT,
   warning       TEXT,               -- non-fatal warning, e.g. low article yield
@@ -58,3 +59,14 @@ CREATE TABLE IF NOT EXISTS projections (
   distance_from_centroid  REAL
 );
 CREATE INDEX IF NOT EXISTS idx_projections_analysis ON projections(analysis_id);
+
+-- Live log of what a pipeline run is doing; streamed to the UI over SSE.
+CREATE TABLE IF NOT EXISTS analysis_events (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  ts           INTEGER NOT NULL,
+  kind         TEXT NOT NULL,      -- stage | query | article | skip | cluster | warning | error
+  message      TEXT NOT NULL,
+  url          TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_events_analysis ON analysis_events(analysis_id, id);

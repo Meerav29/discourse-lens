@@ -13,6 +13,9 @@ Steps:
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
+
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -21,6 +24,8 @@ from umap import UMAP
 from backend.config import settings
 from backend.db import connect
 from backend.embedding.store import read_all_embeddings
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -66,10 +71,21 @@ def _label_cluster(cluster_id: int, top_chunks: list[str]) -> str:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run_projection(analysis_id: str) -> None:
+def run_projection(
+    analysis_id: str,
+    on_step: Callable[[float, str], None] | None = None,
+    on_label: Callable[[str, int], None] | None = None,
+) -> None:
     """
     Full projection pipeline. Writes rows to the SQLite projections table.
+
+    on_step(fraction_done, detail) reports progress; on_label(label, n_chunks)
+    fires as each cluster is named.
     """
+    def step(fraction: float, detail: str) -> None:
+        if on_step:
+            on_step(fraction, detail)
+
     # 1. Load embeddings
     rows = read_all_embeddings(analysis_id)
     if not rows:
@@ -80,11 +96,13 @@ def run_projection(analysis_id: str) -> None:
     child_texts = {r["chunk_id"]: r["child_text"] for r in rows}
 
     # 2. UMAP
+    step(0.0, f"Projecting {len(vectors)} chunks to 2D")
     n_neighbors = min(settings.umap_n_neighbors, len(vectors) - 1)
     reducer = UMAP(n_components=2, n_neighbors=n_neighbors, min_dist=0.1, random_state=42)
     coords_2d = reducer.fit_transform(vectors)   # shape (N, 2)
 
     # 3. K-means
+    step(0.3, "Choosing the number of clusters")
     k = _best_k(vectors)
     km = KMeans(n_clusters=k, n_init=10, random_state=42)
     cluster_labels_arr = km.fit_predict(vectors)   # int labels, shape (N,)
@@ -98,6 +116,7 @@ def run_projection(analysis_id: str) -> None:
     # 5. Generate cluster text labels via Claude
     cluster_text_labels: dict[int, str] = {}
     for cid in range(k):
+        step(0.5 + 0.5 * cid / k, f"Labelling cluster {cid + 1} of {k}")
         mask = cluster_labels_arr == cid
         idxs = np.where(mask)[0]
         # Sort by distance (ascending = most central)
@@ -106,7 +125,10 @@ def run_projection(analysis_id: str) -> None:
         try:
             cluster_text_labels[cid] = _label_cluster(cid, top_texts)
         except Exception:
+            log.warning("Labelling cluster %s failed", cid, exc_info=True)
             cluster_text_labels[cid] = f"cluster {cid}"
+        if on_label:
+            on_label(cluster_text_labels[cid], len(idxs))
 
     # 6. Write projections to SQLite
     conn = connect()

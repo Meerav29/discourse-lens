@@ -68,7 +68,7 @@ def test_corpus_becomes_latest_finished_job(tmp_path, monkeypatch):
     for table in ("articles", "chunks", "projections"):
         ids = {r[0] for r in conn.execute(f"SELECT analysis_id FROM {table}")}
         assert ids == {"job-1"}, table
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()
     assert "jobs" not in tables and "articles_v1" not in tables

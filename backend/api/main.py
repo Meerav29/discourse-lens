@@ -10,15 +10,15 @@ import zipfile
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
+from fastapi import FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from backend import pipeline
 from backend.config import settings
 from backend.db import RUNNING_STATUSES, connect, init_db
 from backend.embedding.store import drop_embeddings
-from backend.pipeline import run_pipeline
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -28,6 +28,7 @@ if sys.platform == "win32":
 async def lifespan(_app: FastAPI):
     init_db()
     yield
+    pipeline.cancel_all()
 
 
 app = FastAPI(title="Discourse Lens API", lifespan=lifespan)
@@ -46,7 +47,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 AnalysisStatus = Literal[
-    "queued", "crawling", "processing", "embedding", "projecting", "done", "error"
+    "queued", "crawling", "processing", "embedding", "projecting", "done", "error", "cancelled"
 ]
 
 
@@ -59,11 +60,20 @@ class Analysis(BaseModel):
     topic: str
     status: AnalysisStatus
     progress: int
+    stage_detail: str | None
     article_count: int
     error_msg: str | None
     warning: str | None
     created_ts: int
     updated_ts: int
+
+
+class AnalysisEvent(BaseModel):
+    id: int
+    ts: int
+    kind: Literal["stage", "query", "article", "skip", "cluster", "warning", "error"]
+    message: str
+    url: str | None
 
 
 class CorpusPoint(BaseModel):
@@ -139,6 +149,15 @@ def _get_analysis(conn: sqlite3.Connection, analysis_id: str) -> sqlite3.Row:
     return row
 
 
+def fetch_events(conn: sqlite3.Connection, analysis_id: str, after: int = 0) -> list[AnalysisEvent]:
+    rows = conn.execute(
+        "SELECT id, ts, kind, message, url FROM analysis_events "
+        "WHERE analysis_id = ? AND id > ? ORDER BY id",
+        (analysis_id, after),
+    ).fetchall()
+    return [AnalysisEvent(**dict(r)) for r in rows]
+
+
 def fetch_outliers(
     conn: sqlite3.Connection, analysis_id: str, cluster_id: int | None = None, limit: int = 50
 ) -> list[dict]:
@@ -181,7 +200,7 @@ def health():
 
 
 @app.post("/api/analyses", status_code=201)
-def create_analysis(req: AnalysisCreate, background_tasks: BackgroundTasks) -> Analysis:
+async def create_analysis(req: AnalysisCreate) -> Analysis:
     analysis_id = str(uuid.uuid4())
     now = int(time.time())
     topic = req.topic.strip()
@@ -196,7 +215,7 @@ def create_analysis(req: AnalysisCreate, background_tasks: BackgroundTasks) -> A
         row = _get_analysis(conn, analysis_id)
     finally:
         conn.close()
-    background_tasks.add_task(run_pipeline, analysis_id, topic)
+    pipeline.start(analysis_id, topic)
     return Analysis(**dict(row))
 
 
@@ -234,8 +253,40 @@ def delete_analysis(analysis_id: str) -> Response:
     return Response(status_code=204)
 
 
+@app.post("/api/analyses/{analysis_id}/cancel", status_code=202)
+def cancel_analysis(analysis_id: str) -> Analysis:
+    """Ask a running analysis to stop; it reaches status 'cancelled' shortly after."""
+    conn = connect()
+    try:
+        row = _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    if row["status"] not in RUNNING_STATUSES or not pipeline.cancel(analysis_id):
+        raise HTTPException(status_code=409, detail="Analysis is not running")
+    return Analysis(**dict(row))
+
+
+@app.get("/api/analyses/{analysis_id}/events")
+def get_events(analysis_id: str, after: int = 0) -> list[AnalysisEvent]:
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+        return fetch_events(conn, analysis_id, after)
+    finally:
+        conn.close()
+
+
+STREAM_POLL_SECONDS = 0.5
+
+
 @app.get("/api/analyses/{analysis_id}/stream")
-async def stream_analysis(analysis_id: str):
+async def stream_analysis(analysis_id: str, last_event_id: int = Header(0)):
+    """
+    Server-sent events until the analysis stops running:
+      default `message` events — the Analysis row, whenever it changes
+      `log` events (with `id:`) — new rows from the event log; EventSource
+      resends Last-Event-ID on reconnect, so the log resumes where it left off.
+    """
     conn = connect()
     try:
         _get_analysis(conn, analysis_id)
@@ -244,18 +295,22 @@ async def stream_analysis(analysis_id: str):
 
     async def event_generator():
         last_payload = None
+        last_id = last_event_id
         while True:
             conn = connect()
             try:
-                row = conn.execute(
-                    "SELECT * FROM analyses WHERE id=?", (analysis_id,)
-                ).fetchone()
+                row = conn.execute("SELECT * FROM analyses WHERE id=?", (analysis_id,)).fetchone()
+                events = fetch_events(conn, analysis_id, last_id) if row else []
             finally:
                 conn.close()
 
             if row is None:  # deleted while streaming
                 yield f"event: error\ndata: {json_lib.dumps({'detail': 'Analysis not found'})}\n\n"
                 return
+
+            for ev in events:
+                yield f"event: log\nid: {ev.id}\ndata: {ev.model_dump_json()}\n\n"
+                last_id = ev.id
 
             payload = Analysis(**dict(row)).model_dump_json()
             if payload != last_payload:
@@ -265,7 +320,7 @@ async def stream_analysis(analysis_id: str):
             if row["status"] not in RUNNING_STATUSES:
                 return
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(STREAM_POLL_SECONDS)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

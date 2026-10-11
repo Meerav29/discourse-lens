@@ -3,18 +3,16 @@ from conftest import add_analysis, add_chunk
 from fastapi.testclient import TestClient
 
 from backend.api import main
-from backend.db import connect
+from backend.db import add_event, connect
 from backend.embedding import store
 
 
 @pytest.fixture
 def client(isolated, monkeypatch):
     started = []
-
-    async def fake_pipeline(analysis_id, topic):
-        started.append((analysis_id, topic))
-
-    monkeypatch.setattr(main, "run_pipeline", fake_pipeline)
+    monkeypatch.setattr(
+        main.pipeline, "start", lambda analysis_id, topic: started.append((analysis_id, topic))
+    )
     with TestClient(main.app) as c:
         c.started = started
         yield c
@@ -99,3 +97,57 @@ def test_restart_fails_interrupted_analyses(isolated):
     conn.close()
     assert row["status"] == "error"
     assert "restart" in row["error_msg"]
+
+
+def test_cancel_requires_running_analysis(client):
+    add_analysis("an1", status="done")
+    assert client.post("/api/analyses/an1/cancel").status_code == 409
+
+
+def test_cancel_running_analysis(client, monkeypatch):
+    add_analysis("an1", status="crawling")
+    cancelled = []
+    monkeypatch.setattr(main.pipeline, "cancel", lambda aid: cancelled.append(aid) or True)
+    r = client.post("/api/analyses/an1/cancel")
+    assert r.status_code == 202
+    assert cancelled == ["an1"]
+
+
+def test_events_endpoint_pages_with_after(client):
+    add_analysis("an1")
+    add_event("an1", "stage", "Crawling")
+    add_event("an1", "article", "Title", "https://x")
+    events = client.get("/api/analyses/an1/events").json()
+    assert [e["kind"] for e in events] == ["stage", "article"]
+    later = client.get(f"/api/analyses/an1/events?after={events[0]['id']}").json()
+    assert [e["message"] for e in later] == ["Title"]
+
+
+def _sse(text):
+    """Parse an SSE body into a list of {event, id, data} dicts."""
+    out = []
+    for block in text.strip().split("\n\n"):
+        msg = {"event": "message"}
+        for line in block.splitlines():
+            key, _, value = line.partition(": ")
+            msg[key] = value
+        out.append(msg)
+    return out
+
+
+def test_stream_sends_log_events_and_resumes(client):
+    add_analysis("an1", status="done")
+    for i in range(3):
+        add_event("an1", "stage", f"step {i}")
+
+    msgs = _sse(client.get("/api/analyses/an1/stream").text)
+    logs = [m for m in msgs if m["event"] == "log"]
+    assert len(logs) == 3
+    assert msgs[-1]["event"] == "message" and '"status":"done"' in msgs[-1]["data"]
+
+    resumed = _sse(
+        client.get("/api/analyses/an1/stream", headers={"Last-Event-ID": logs[0]["id"]}).text
+    )
+    assert [m["data"] for m in resumed if m["event"] == "log"] == [
+        logs[1]["data"], logs[2]["data"]
+    ]

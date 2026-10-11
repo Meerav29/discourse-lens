@@ -1,9 +1,13 @@
+import logging
 import time
+from collections.abc import Callable
 
 import httpx
 
 from backend.claude_client import complete
 from backend.config import settings
+
+log = logging.getLogger(__name__)
 
 
 def generate_queries(topic: str) -> list[str]:
@@ -56,17 +60,30 @@ def brave_search(query: str, count: int = 20, max_retries: int = 3) -> list[str]
     return []
 
 
-def collect_urls(topic: str) -> list[str]:
-    """Generate queries, search each, return deduplicated URLs up to MAX_ARTICLES cap."""
+def collect_urls(
+    topic: str,
+    on_query: Callable[[int, int, str, int | None], None] | None = None,
+) -> list[str]:
+    """
+    Generate queries, search each, return deduplicated URLs up to the article cap.
+
+    on_query(done, total, query, new_urls) is called after each search;
+    new_urls is None when that search failed.
+    """
     queries = generate_queries(topic)
     seen: set[str] = set()
     urls: list[str] = []
-    for query in queries:
+    for i, query in enumerate(queries, start=1):
+        new: int | None = 0
         try:
             for url in brave_search(query):
                 if url not in seen:
                     seen.add(url)
                     urls.append(url)
+                    new += 1
         except Exception:
-            continue  # failed query — skip, don't crash
+            log.warning("Search failed for %r", query, exc_info=True)
+            new = None  # failed query — skip, don't crash
+        if on_query:
+            on_query(i, len(queries), query, new)
     return urls[:settings.max_articles]
