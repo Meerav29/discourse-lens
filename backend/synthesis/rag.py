@@ -20,6 +20,22 @@ LANCE_PATH = os.getenv("LANCE_PATH", "./data/vectors")
 TABLE_NAME = "embeddings"
 
 
+def order_and_dedupe_by_article(rows: list[dict], ranked_chunk_ids: list[str]) -> list[dict]:
+    """
+    Put SQLite rows (which come back in arbitrary order) into vector-search rank
+    order, then keep only the highest-ranked chunk per article.
+    """
+    rank = {cid: i for i, cid in enumerate(ranked_chunk_ids)}
+    ordered = sorted(rows, key=lambda r: rank.get(r["chunk_id"], len(rank)))
+    seen_articles: set[str] = set()
+    deduped = []
+    for row in ordered:
+        if row["article_id"] not in seen_articles:
+            seen_articles.add(row["article_id"])
+            deduped.append(row)
+    return deduped
+
+
 def query_corpus(query: str, db_path: str | None = None, top_k: int | None = None) -> dict:
     _db_path = db_path or DB_PATH
     _top_k = top_k or int(os.getenv("RAG_TOP_K", "15"))
@@ -27,7 +43,7 @@ def query_corpus(query: str, db_path: str | None = None, top_k: int | None = Non
     # --- 1. Embed the query ---
     try:
         from backend.embedding.embed import embed_chunks
-        embedded = embed_chunks([{"id": "query", "child_text": query}])
+        embedded = embed_chunks([{"id": "query", "child_text": query}], kind="query")
         query_vector = embedded[0]["vector"]
     except Exception as e:
         return {"answer": f"Embedding error: {e}", "citations": []}
@@ -66,13 +82,8 @@ def query_corpus(query: str, db_path: str | None = None, top_k: int | None = Non
     finally:
         conn.close()
 
-    # --- 4. Deduplicate by article (keep first occurrence per article_id) ---
-    seen_articles: set[str] = set()
-    deduped = []
-    for row in rows:
-        if row["article_id"] not in seen_articles:
-            seen_articles.add(row["article_id"])
-            deduped.append(dict(row))
+    # --- 4. Deduplicate by article, keeping each article's best-ranked chunk ---
+    deduped = order_and_dedupe_by_article([dict(r) for r in rows], chunk_ids)
 
     if not deduped:
         return {"answer": "Could not retrieve context from the corpus.", "citations": []}

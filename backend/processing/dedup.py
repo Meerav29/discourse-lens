@@ -57,3 +57,18 @@ def mark_duplicates(chunks: list[dict]) -> list[dict]:
             lsh.insert(cid, m)
 
     return chunks
+
+
+def chunk_and_dedup(articles: list[dict]) -> list[dict]:
+    """
+    Chunk every article (dicts with 'id' and 'raw_text'), then dedup across the
+    whole corpus in one pass so syndicated copies of the same story on different
+    sites are caught. Earlier articles keep their chunks; later copies are marked.
+    """
+    from backend.processing.chunker import chunk_article
+
+    chunks: list[dict] = []
+    for art in articles:
+        if art.get("raw_text"):
+            chunks.extend(chunk_article(art["id"], art["raw_text"]))
+    return mark_duplicates(chunks)

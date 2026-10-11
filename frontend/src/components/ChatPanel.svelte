@@ -2,6 +2,7 @@
   import { api } from '../lib/api.js';
   import { PRESET_QUERIES } from '../lib/presets.js';
   import { marked } from 'marked';
+  import DOMPurify from 'dompurify';
   import { afterUpdate } from 'svelte';
 
   marked.setOptions({ breaks: true, gfm: true });
@@ -46,7 +47,8 @@
   }
 
   function renderMd(text) {
-    return marked.parse(text || '');
+    // LLM output can echo text from scraped pages — never trust it as HTML.
+    return DOMPurify.sanitize(marked.parse(text || ''));
   }
 </script>
 

@@ -19,6 +19,10 @@ EMBEDDING_MODE = os.getenv("EMBEDDING_MODE", "local")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = "nomic-embed-text"
 
+# nomic-embed-text is trained with task prefixes; without them retrieval and
+# clustering quality drop. OpenAI models take raw text.
+_NOMIC_PREFIXES = {"document": "search_document: ", "query": "search_query: "}
+
 
 def _batched(items: list, size: int) -> Generator[list, None, None]:
     for i in range(0, len(items), size):
@@ -67,9 +71,20 @@ def _embed_openai(texts: list[str]) -> list[list[float]]:
     return [item.embedding for item in resp.data]
 
 
-def embed_chunks(chunks: list[dict]) -> list[dict]:
+def prepare_texts(texts: list[str], kind: str) -> list[str]:
+    """Apply the model's task prefix. kind is 'document' or 'query'."""
+    if kind not in _NOMIC_PREFIXES:
+        raise ValueError(f"kind must be 'document' or 'query', got {kind!r}")
+    if EMBEDDING_MODE != "local":
+        return texts
+    prefix = _NOMIC_PREFIXES[kind]
+    return [prefix + t for t in texts]
+
+
+def embed_chunks(chunks: list[dict], kind: str = "document") -> list[dict]:
     """
     Takes a list of chunk dicts (must have 'id' and 'child_text').
+    kind: 'document' for corpus chunks, 'query' for search queries.
     Returns list of dicts: {chunk_id, vector}.
     Processes in batches of BATCH_SIZE.
     """
@@ -78,7 +93,7 @@ def embed_chunks(chunks: list[dict]) -> list[dict]:
     embed_fn = _embed_local if EMBEDDING_MODE == "local" else _embed_openai
 
     for batch in _batched(chunks, BATCH_SIZE):
-        texts = [c["child_text"] for c in batch]
+        texts = prepare_texts([c["child_text"] for c in batch], kind)
         vectors = embed_fn(texts)
         for chunk, vector in zip(batch, vectors):
             results.append({"chunk_id": chunk["id"], "vector": vector})

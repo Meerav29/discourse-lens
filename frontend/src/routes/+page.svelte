@@ -54,9 +54,21 @@
   let exportError = null;
 
   // --- Computed ---
-  $: filteredOutliers = selectedCluster == null
-    ? outliers
-    : outliers.filter(o => o.cluster_id === selectedCluster);
+  // Outliers are fetched per cluster from the server; filtering the global
+  // top-N on the client left small clusters with an empty list.
+  let outlierRequest = 0;
+  $: if (phase === 'results') refreshOutliers(selectedCluster);
+
+  async function refreshOutliers(clusterId) {
+    const request = ++outlierRequest;
+    try {
+      const data = await api.getOutliers(clusterId);
+      if (request === outlierRequest) outliers = data;
+    } catch (e) {
+      console.error('Failed to load outliers', e);
+      if (request === outlierRequest) outliers = [];
+    }
+  }
 
   $: clusterCount = [...new Set(points.map(p => p.cluster_id))].length;
 
@@ -109,12 +121,7 @@
 
   async function loadResults() {
     try {
-      const [corpusData, outliersData] = await Promise.all([
-        api.getCorpus(),
-        api.getOutliers(),
-      ]);
-      points = corpusData;
-      outliers = outliersData;
+      points = await api.getCorpus();
       phase = 'results';
     } catch (e) {
       jobError = e.message;
@@ -309,7 +316,7 @@
 
         <div class="view-panel" class:active={activeView === 'outliers'}>
           <OutlierFinder
-            outliers={filteredOutliers}
+            {outliers}
             onSelectArticle={handleSelectArticle}
           />
         </div>
@@ -338,7 +345,7 @@
           </div>
           <div class="sidebar-scroll">
             <OutlierFinder
-              outliers={filteredOutliers}
+              {outliers}
               onSelectArticle={handleSelectArticle}
             />
           </div>

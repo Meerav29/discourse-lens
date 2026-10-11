@@ -156,42 +156,44 @@ def get_clusters():
     return [dict(r) for r in rows]
 
 
+def fetch_outliers(
+    conn: sqlite3.Connection, cluster_id: int | None = None, limit: int = 50
+) -> list[dict]:
+    """One row per article — its chunk furthest from its cluster centroid —
+    ordered by that distance, optionally restricted to one cluster."""
+    rows = conn.execute(
+        """
+        SELECT chunk_id, cluster_id, cluster_label, distance_from_centroid,
+               article_id, title, domain, publish_date
+        FROM (
+            SELECT p.chunk_id, p.cluster_id, p.cluster_label,
+                   p.distance_from_centroid,
+                   c.article_id, a.title, a.domain, a.publish_date,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY c.article_id
+                       ORDER BY p.distance_from_centroid DESC
+                   ) AS rn
+            FROM projections p
+            JOIN chunks c ON c.id = p.chunk_id
+            JOIN articles a ON a.id = c.article_id
+            WHERE a.status = 'ok' AND (:cid IS NULL OR p.cluster_id = :cid)
+        )
+        WHERE rn = 1
+        ORDER BY distance_from_centroid DESC
+        LIMIT :limit
+        """,
+        {"cid": cluster_id, "limit": limit},
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 @app.get("/api/outliers")
 def get_outliers(cluster_id: int | None = None):
     conn = get_db()
     try:
-        if cluster_id is not None:
-            rows = conn.execute(
-                """
-                SELECT p.chunk_id, p.cluster_id, p.cluster_label,
-                       p.distance_from_centroid,
-                       c.article_id, a.title, a.domain, a.publish_date
-                FROM projections p
-                JOIN chunks c ON c.id = p.chunk_id
-                JOIN articles a ON a.id = c.article_id
-                WHERE a.status = 'ok' AND p.cluster_id = ?
-                ORDER BY p.distance_from_centroid DESC
-                LIMIT 50
-                """,
-                (cluster_id,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT p.chunk_id, p.cluster_id, p.cluster_label,
-                       p.distance_from_centroid,
-                       c.article_id, a.title, a.domain, a.publish_date
-                FROM projections p
-                JOIN chunks c ON c.id = p.chunk_id
-                JOIN articles a ON a.id = c.article_id
-                WHERE a.status = 'ok'
-                ORDER BY p.distance_from_centroid DESC
-                LIMIT 50
-                """
-            ).fetchall()
+        return fetch_outliers(conn, cluster_id)
     finally:
         conn.close()
-    return [dict(r) for r in rows]
 
 
 @app.get("/api/articles/{article_id}")
@@ -344,8 +346,7 @@ async def run_pipeline(job_id: str, topic: str) -> None:
     from backend.ingestion.crawler import crawl_urls
     from backend.ingestion.extractor import extract_article
     from backend.processing.metadata import extract_publish_date
-    from backend.processing.chunker import chunk_article
-    from backend.processing.dedup import mark_duplicates
+    from backend.processing.dedup import chunk_and_dedup
 
     try:
         # Clear previous corpus before starting fresh
@@ -416,21 +417,17 @@ async def run_pipeline(job_id: str, topic: str) -> None:
         update_job(job_id, progress=75)
 
         def _chunk_and_dedup(articles: list[dict]) -> None:
+            chunks = chunk_and_dedup(articles)
             conn = sqlite3.connect(DB_PATH)
             try:
-                for art in articles:
-                    if not art.get("raw_text"):
-                        continue
-                    chunks = chunk_article(art["id"], art["raw_text"])
-                    chunks = mark_duplicates(chunks)
-                    conn.executemany(
-                        "INSERT OR IGNORE INTO chunks "
-                        "(id, article_id, parent_id, parent_text, child_text, "
-                        " chunk_index, token_count, is_duplicate) "
-                        "VALUES (:id, :article_id, :parent_id, :parent_text, :child_text, "
-                        " :chunk_index, :token_count, :is_duplicate)",
-                        chunks,
-                    )
+                conn.executemany(
+                    "INSERT OR IGNORE INTO chunks "
+                    "(id, article_id, parent_id, parent_text, child_text, "
+                    " chunk_index, token_count, is_duplicate) "
+                    "VALUES (:id, :article_id, :parent_id, :parent_text, :child_text, "
+                    " :chunk_index, :token_count, :is_duplicate)",
+                    chunks,
+                )
                 conn.commit()
             finally:
                 conn.close()
@@ -471,7 +468,7 @@ async def run_pipeline(job_id: str, topic: str) -> None:
                 for r in rows
             ]
 
-            embeddings = embed_chunks(chunks_for_embed)
+            embeddings = embed_chunks(chunks_for_embed, kind="document")
 
             # Build full rows for LanceDB (merge embed result with metadata)
             meta_by_id = {c["id"]: c for c in chunks_for_embed}
