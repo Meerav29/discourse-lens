@@ -1,24 +1,30 @@
 const BASE = 'http://localhost:8001';
 
+async function errorMessage(res) {
+  try {
+    const body = await res.json();
+    if (typeof body.detail === 'string') return body.detail;
+  } catch { /* not JSON */ }
+  return `HTTP ${res.status}`;
+}
+
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, options);
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try { const e = await res.json(); msg = e.error || msg; } catch {}
-    throw new Error(msg);
-  }
+  if (!res.ok) throw new Error(await errorMessage(res));
   return res.json();
 }
 
+const a = (id) => `/api/analyses/${encodeURIComponent(id)}`;
+
 export const api = {
-  startJob: (topic) => apiFetch('/api/jobs', {
+  createAnalysis: (topic) => apiFetch('/api/analyses', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ topic }),
   }),
-  getJob: (id) => apiFetch(`/api/jobs/${id}`),
-  streamJob: (id, onUpdate, onError) => {
-    const source = new EventSource(`${BASE}/api/jobs/${id}/stream`);
+  getAnalysis: (id) => apiFetch(a(id)),
+  streamAnalysis: (id, onUpdate, onError) => {
+    const source = new EventSource(`${BASE}${a(id)}/stream`);
     source.onmessage = (e) => onUpdate(JSON.parse(e.data));
     source.addEventListener('error', (e) => {
       if (e.data) {
@@ -28,23 +34,20 @@ export const api = {
     source.onerror = () => { /* connection dropped or stream closed by server */ };
     return source;
   },
-  getCorpus: () => apiFetch('/api/corpus'),
-  getClusters: () => apiFetch('/api/clusters'),
-  getOutliers: (clusterId = null) => apiFetch(
-    `/api/outliers${clusterId != null ? `?cluster_id=${clusterId}` : ''}`
+  getCorpus: (id) => apiFetch(`${a(id)}/corpus`),
+  getClusters: (id) => apiFetch(`${a(id)}/clusters`),
+  getOutliers: (id, clusterId = null) => apiFetch(
+    `${a(id)}/outliers${clusterId != null ? `?cluster_id=${clusterId}` : ''}`
   ),
-  getArticle: (id) => apiFetch(`/api/articles/${id}`),
-  chat: (query) => apiFetch('/api/chat', {
+  getArticle: (id, articleId) => apiFetch(`${a(id)}/articles/${encodeURIComponent(articleId)}`),
+  chat: (id, query) => apiFetch(`${a(id)}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),
   }),
-  exportZip: () => fetch(`${BASE}/api/export`).then(async res => {
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try { const e = await res.json(); msg = e.error || msg; } catch {}
-      throw new Error(msg);
-    }
+  exportZip: async (id) => {
+    const res = await fetch(`${BASE}${a(id)}/export`);
+    if (!res.ok) throw new Error(await errorMessage(res));
     return res.blob();
-  }),
+  },
 };

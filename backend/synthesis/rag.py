@@ -8,15 +8,20 @@ Steps:
 4. Deduplicate by article (max one excerpt per article).
 5. Assemble context string and call Claude.
 6. Return {"answer": str, "citations": [{"url", "title", "domain"}]}.
+
+Errors propagate to the caller; an analysis with no vectors raises NoCorpusError.
 """
 
 from __future__ import annotations
 
-import sqlite3
-
 from backend.config import settings
+from backend.db import connect
+from backend.embedding.embed import embed_chunks
+from backend.embedding.store import open_table
 
-TABLE_NAME = "embeddings"
+
+class NoCorpusError(LookupError):
+    """The analysis has no indexed vectors to search."""
 
 
 def order_and_dedupe_by_article(rows: list[dict], ranked_chunk_ids: list[str]) -> list[dict]:
@@ -35,38 +40,25 @@ def order_and_dedupe_by_article(rows: list[dict], ranked_chunk_ids: list[str]) -
     return deduped
 
 
-def query_corpus(query: str, db_path: str | None = None, top_k: int | None = None) -> dict:
-    _db_path = db_path or settings.db_path
+def query_corpus(analysis_id: str, query: str, top_k: int | None = None) -> dict:
     _top_k = top_k or settings.rag_top_k
 
+    table = open_table(analysis_id)
+    if table is None:
+        raise NoCorpusError("This analysis has no indexed corpus yet.")
+
     # --- 1. Embed the query ---
-    try:
-        from backend.embedding.embed import embed_chunks
-        embedded = embed_chunks([{"id": "query", "child_text": query}], kind="query")
-        query_vector = embedded[0]["vector"]
-    except Exception as e:
-        return {"answer": f"Embedding error: {e}", "citations": []}
+    query_vector = embed_chunks([{"id": "query", "child_text": query}], kind="query")[0]["vector"]
 
     # --- 2. Search LanceDB ---
-    try:
-        import lancedb
-        db = lancedb.connect(settings.lance_path)
-        from backend.embedding.store import table_exists
-        if not table_exists(db, TABLE_NAME):
-            return {"answer": "No corpus indexed yet. Please run an analysis first.", "citations": []}
-        table = db.open_table(TABLE_NAME)
-        results_df = table.search(query_vector).limit(_top_k).to_pandas()
-    except Exception as e:
-        return {"answer": f"Vector search error: {e}", "citations": []}
-
+    results_df = table.search(query_vector).limit(_top_k).to_pandas()
     if results_df.empty:
-        return {"answer": "No corpus indexed yet. Please run an analysis first.", "citations": []}
+        raise NoCorpusError("This analysis has no indexed corpus yet.")
 
     chunk_ids = results_df["chunk_id"].tolist()
 
     # --- 3. Fetch parent_text + article metadata from SQLite ---
-    conn = sqlite3.connect(_db_path)
-    conn.row_factory = sqlite3.Row
+    conn = connect()
     try:
         placeholders = ",".join("?" for _ in chunk_ids)
         rows = conn.execute(

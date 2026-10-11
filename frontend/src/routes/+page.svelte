@@ -30,7 +30,7 @@
   let topic = '';
 
   // --- Job status (via SSE) ---
-  let jobId = null;
+  let analysisId = null;
   let jobStatus = null;
   let jobProgress = 0;
   let jobError = null;
@@ -62,7 +62,7 @@
   async function refreshOutliers(clusterId) {
     const request = ++outlierRequest;
     try {
-      const data = await api.getOutliers(clusterId);
+      const data = await api.getOutliers(analysisId, clusterId);
       if (request === outlierRequest) outliers = data;
     } catch (e) {
       console.error('Failed to load outliers', e);
@@ -86,8 +86,8 @@
     selectedArticleId = null;
 
     try {
-      const res = await api.startJob(currentTopic);
-      jobId = res.job_id;
+      const res = await api.createAnalysis(currentTopic);
+      analysisId = res.id;
       startStreaming();
     } catch (e) {
       jobError = e.message;
@@ -97,8 +97,8 @@
 
   function startStreaming() {
     jobStream?.close();
-    jobStream = api.streamJob(
-      jobId,
+    jobStream = api.streamAnalysis(
+      analysisId,
       async (job) => {
         jobStatus = job.status;
         jobProgress = job.progress || 0;
@@ -114,14 +114,14 @@
       (err) => {
         jobStream?.close();
         jobStatus = 'error';
-        jobError = err.error || 'Lost connection to job stream';
+        jobError = err.detail || 'Lost connection to job stream';
       }
     );
   }
 
   async function loadResults() {
     try {
-      points = await api.getCorpus();
+      points = await api.getCorpus(analysisId);
       phase = 'results';
     } catch (e) {
       jobError = e.message;
@@ -130,13 +130,11 @@
   }
 
   function resetToInput() {
-    const confirmed = window.confirm('This will clear the current corpus. Continue?');
-    if (!confirmed) return;
     jobStream?.close();
     jobStream = null;
     phase = 'input';
     topic = '';
-    jobId = null;
+    analysisId = null;
     jobStatus = null;
     jobProgress = 0;
     jobError = null;
@@ -164,7 +162,7 @@
     exporting = true;
     exportError = null;
     try {
-      const blob = await api.exportZip();
+      const blob = await api.exportZip(analysisId);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -330,7 +328,7 @@
         </div>
 
         <div class="view-panel" class:active={activeView === 'chat'}>
-          <ChatPanel />
+          <ChatPanel {analysisId} />
         </div>
       </div>
 
@@ -355,6 +353,7 @@
 
     <!-- Article overlay -->
     <ArticleSidebar
+      {analysisId}
       articleId={selectedArticleId}
       onClose={closeSidebar}
     />

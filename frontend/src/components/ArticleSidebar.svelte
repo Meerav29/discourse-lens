@@ -1,6 +1,7 @@
 <script>
   import { api } from '../lib/api.js';
 
+  export let analysisId;
   export let articleId = null;
   export let onClose = () => {};
 
@@ -20,7 +21,7 @@
     error = null;
     article = null;
     try {
-      article = await api.getArticle(id);
+      article = await api.getArticle(analysisId, id);
     } catch (e) {
       error = e.message;
     } finally {

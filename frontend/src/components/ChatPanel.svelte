@@ -5,6 +5,8 @@
   import DOMPurify from 'dompurify';
   import { afterUpdate } from 'svelte';
 
+  export let analysisId;
+
   marked.setOptions({ breaks: true, gfm: true });
 
   let query = '';
@@ -30,7 +32,7 @@
     messages = [...messages, { role: 'user', text: userText }];
     loading = true;
     try {
-      const res = await api.chat(userText);
+      const res = await api.chat(analysisId, userText);
       messages = [...messages, { role: 'assistant', text: res.answer, citations: res.citations || [] }];
     } catch (e) {
       error = e.message;

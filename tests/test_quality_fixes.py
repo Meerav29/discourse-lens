@@ -1,10 +1,9 @@
-import sqlite3
-from pathlib import Path
-
 import pytest
+from conftest import add_analysis, add_chunk
 
 from backend.api.main import fetch_outliers
 from backend.config import settings
+from backend.db import connect
 from backend.embedding import embed
 from backend.processing.dedup import chunk_and_dedup
 from backend.synthesis.rag import order_and_dedupe_by_article
@@ -83,39 +82,31 @@ def test_rag_keeps_best_ranked_chunk_per_article():
 # ── outliers ─────────────────────────────────────────────────────────────────
 
 @pytest.fixture
-def db():
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    schema = Path(__file__).parent.parent / "backend" / "db" / "schema.sql"
-    conn.executescript(schema.read_text())
-    conn.executemany(
-        "INSERT INTO articles (id, url, title, status) VALUES (?,?,?,?)",
-        [("a1", "u1", "A1", "ok"), ("a2", "u2", "A2", "ok"), ("a3", "u3", "A3", "ok")],
-    )
-    chunks = [("a1#0", "a1"), ("a1#1", "a1"), ("a1#2", "a1"), ("a2#0", "a2"), ("a3#0", "a3")]
-    conn.executemany("INSERT INTO chunks (id, article_id) VALUES (?,?)", chunks)
-    conn.executemany(
-        "INSERT INTO projections (chunk_id, cluster_id, cluster_label, distance_from_centroid) "
-        "VALUES (?,?,?,?)",
-        [
-            ("a1#0", 0, "zero", 9.0),
-            ("a1#1", 0, "zero", 8.0),
-            ("a1#2", 0, "zero", 7.0),
-            ("a2#0", 0, "zero", 1.0),
-            ("a3#0", 1, "one", 5.0),
-        ],
-    )
+def db(isolated):
+    add_analysis("an1")
+    add_chunk("an1", "a1", "a1#0", distance=9.0)
+    add_chunk("an1", "a1", "a1#1", distance=8.0)
+    add_chunk("an1", "a1", "a1#2", distance=7.0)
+    add_chunk("an1", "a2", "a2#0", distance=1.0)
+    add_chunk("an1", "a3", "a3#0", cluster_id=1, label="one", distance=5.0)
+    conn = connect()
     yield conn
     conn.close()
 
 
 def test_outliers_one_row_per_article(db):
-    rows = fetch_outliers(db)
+    rows = fetch_outliers(db, "an1")
     assert [r["article_id"] for r in rows] == ["a1", "a3", "a2"]
     assert rows[0]["chunk_id"] == "a1#0"
     assert rows[0]["distance_from_centroid"] == 9.0
 
 
 def test_outliers_filtered_by_cluster(db):
-    rows = fetch_outliers(db, cluster_id=1)
+    rows = fetch_outliers(db, "an1", cluster_id=1)
     assert [r["article_id"] for r in rows] == ["a3"]
+
+
+def test_outliers_scoped_to_analysis(db):
+    add_analysis("an2")
+    add_chunk("an2", "b1", "b1#0", distance=99.0)
+    assert "b1" not in [r["article_id"] for r in fetch_outliers(db, "an1")]

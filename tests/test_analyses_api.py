@@ -1,0 +1,101 @@
+import pytest
+from conftest import add_analysis, add_chunk
+from fastapi.testclient import TestClient
+
+from backend.api import main
+from backend.db import connect
+from backend.embedding import store
+
+
+@pytest.fixture
+def client(isolated, monkeypatch):
+    started = []
+
+    async def fake_pipeline(analysis_id, topic):
+        started.append((analysis_id, topic))
+
+    monkeypatch.setattr(main, "run_pipeline", fake_pipeline)
+    with TestClient(main.app) as c:
+        c.started = started
+        yield c
+
+
+def test_create_and_list(client):
+    r = client.post("/api/analyses", json={"topic": "  urban heat islands  "})
+    assert r.status_code == 201
+    created = r.json()
+    assert created["topic"] == "urban heat islands"
+    assert created["status"] == "queued"
+    assert client.started == [(created["id"], "urban heat islands")]
+
+    listed = client.get("/api/analyses").json()
+    assert [a["id"] for a in listed] == [created["id"]]
+
+
+def test_blank_topic_rejected(client):
+    assert client.post("/api/analyses", json={"topic": ""}).status_code == 422
+
+
+def test_unknown_analysis_is_404_with_string_detail(client):
+    r = client.get("/api/analyses/nope/corpus")
+    assert r.status_code == 404
+    assert r.json() == {"detail": "Analysis not found"}
+
+
+def test_corpus_is_scoped_to_analysis(client):
+    add_analysis("an1")
+    add_analysis("an2")
+    add_chunk("an1", "a1", "a1#0")
+    add_chunk("an2", "b1", "b1#0")
+
+    points = client.get("/api/analyses/an1/corpus").json()
+    assert [p["article_id"] for p in points] == ["a1"]
+    clusters = client.get("/api/analyses/an2/clusters").json()
+    assert clusters == [{"cluster_id": 0, "cluster_label": "zero", "article_count": 1}]
+
+
+def test_article_must_belong_to_analysis(client):
+    add_analysis("an1")
+    add_analysis("an2")
+    add_chunk("an1", "a1", "a1#0")
+    assert client.get("/api/analyses/an1/articles/a1").status_code == 200
+    assert client.get("/api/analyses/an2/articles/a1").status_code == 404
+
+
+def test_delete_cascades_rows_and_vectors(client):
+    add_analysis("an1")
+    add_analysis("an2")
+    add_chunk("an1", "a1", "a1#0")
+    add_chunk("an2", "b1", "b1#0")
+    store.write_embeddings("an1", [{"chunk_id": "a1#0", "article_id": "a1", "vector": [0.1, 0.2]}])
+
+    assert client.delete("/api/analyses/an1").status_code == 204
+
+    conn = connect()
+    counts = {
+        t: conn.execute(f"SELECT COUNT(*) FROM {t} WHERE analysis_id='an1'").fetchone()[0]
+        for t in ("articles", "chunks", "projections")
+    }
+    other = conn.execute("SELECT COUNT(*) FROM chunks WHERE analysis_id='an2'").fetchone()[0]
+    conn.close()
+    assert counts == {"articles": 0, "chunks": 0, "projections": 0}
+    assert other == 1
+    assert store.open_table("an1") is None
+    assert client.get("/api/analyses/an1").status_code == 404
+
+
+def test_cannot_delete_running_analysis(client):
+    add_analysis("an1", status="embedding")
+    assert client.delete("/api/analyses/an1").status_code == 409
+
+
+def test_restart_fails_interrupted_analyses(isolated):
+    from backend.db import init_db
+
+    add_analysis("an1", status="crawling")
+    init_db()
+    conn = connect()
+    row = conn.execute("SELECT status, error_msg FROM analyses WHERE id='an1'").fetchone()
+    conn.close()
+    assert row["status"] == "error"
+    assert "restart" in row["error_msg"]

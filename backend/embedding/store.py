@@ -1,8 +1,8 @@
 """
-LanceDB read/write for embeddings.
+LanceDB read/write for embeddings — one table per analysis.
 
-Table schema (per PLANNING.md §4.2):
-  chunk_id, article_id, vector, child_text, domain, publish_date, cluster_id
+Table schema:
+  chunk_id, article_id, vector, child_text, domain, publish_date
 """
 
 from __future__ import annotations
@@ -12,7 +12,18 @@ import pyarrow as pa
 
 from backend.config import settings
 
-TABLE_NAME = "embeddings"
+# Single global table used before analyses existed (schema v1).
+LEGACY_TABLE_NAME = "embeddings"
+
+_COLUMNS = ["chunk_id", "article_id", "vector", "child_text", "domain", "publish_date"]
+
+
+def table_name(analysis_id: str) -> str:
+    return "emb_" + analysis_id.replace("-", "")
+
+
+def _connect() -> lancedb.DBConnection:
+    return lancedb.connect(settings.lance_path)
 
 
 def table_exists(db: lancedb.DBConnection, name: str) -> bool:
@@ -27,76 +38,14 @@ def table_exists(db: lancedb.DBConnection, name: str) -> bool:
             return False
 
 
-def _get_table(db: lancedb.DBConnection) -> lancedb.table.Table | None:
-    if table_exists(db, TABLE_NAME):
-        return db.open_table(TABLE_NAME)
-    return None
+def open_table(analysis_id: str) -> lancedb.table.Table | None:
+    db = _connect()
+    name = table_name(analysis_id)
+    return db.open_table(name) if table_exists(db, name) else None
 
 
-def write_embeddings(rows: list[dict]) -> None:
-    """
-    rows: list of dicts with keys:
-      chunk_id, article_id, vector, child_text, domain, publish_date, cluster_id
-    Creates or appends to the LanceDB embeddings table.
-    """
-    if not rows:
-        return
-
-    db = lancedb.connect(settings.lance_path)
-    table = _get_table(db)
-
-    if table is None:
-        # Infer dim from first row
-        dim = len(rows[0]["vector"])
-        schema = pa.schema(
-            [
-                pa.field("chunk_id", pa.string()),
-                pa.field("article_id", pa.string()),
-                pa.field("vector", pa.list_(pa.float32(), dim)),
-                pa.field("child_text", pa.string()),
-                pa.field("domain", pa.string()),
-                pa.field("publish_date", pa.string()),
-                pa.field("cluster_id", pa.int32()),
-            ]
-        )
-        # Normalise rows to correct types
-        normalised = _normalise(rows)
-        db.create_table(TABLE_NAME, data=normalised, schema=schema)
-    else:
-        normalised = _normalise(rows)
-        table.add(normalised)
-
-
-def read_all_embeddings() -> list[dict]:
-    """Return all rows from the embeddings table as a list of dicts."""
-    db = lancedb.connect(settings.lance_path)
-    table = _get_table(db)
-    if table is None:
-        return []
-    return table.to_pandas().to_dict(orient="records")
-
-
-def update_cluster_ids(chunk_cluster_map: dict[str, int]) -> None:
-    """
-    Update the cluster_id column for each chunk_id.
-    LanceDB doesn't support in-place updates; we reload and overwrite.
-    """
-    if not chunk_cluster_map:
-        return
-
-    db = lancedb.connect(settings.lance_path)
-    table = _get_table(db)
-    if table is None:
-        return
-
-    df = table.to_pandas()
-    df["cluster_id"] = df["chunk_id"].map(
-        lambda cid: chunk_cluster_map.get(cid, df.loc[df["chunk_id"] == cid, "cluster_id"].iloc[0])
-    )
-    # Overwrite table
-    db.drop_table(TABLE_NAME)
-    dim = len(df["vector"].iloc[0])
-    schema = pa.schema(
+def _schema(dim: int) -> pa.Schema:
+    return pa.schema(
         [
             pa.field("chunk_id", pa.string()),
             pa.field("article_id", pa.string()),
@@ -104,43 +53,67 @@ def update_cluster_ids(chunk_cluster_map: dict[str, int]) -> None:
             pa.field("child_text", pa.string()),
             pa.field("domain", pa.string()),
             pa.field("publish_date", pa.string()),
-            pa.field("cluster_id", pa.int32()),
         ]
     )
-    records = []
-    for _, row in df.iterrows():
-        records.append({
-            "chunk_id": str(row["chunk_id"]),
-            "article_id": str(row["article_id"]),
-            "vector": [float(v) for v in row["vector"]],
-            "child_text": str(row["child_text"]),
-            "domain": str(row["domain"]) if row["domain"] else "",
-            "publish_date": str(row["publish_date"]) if row["publish_date"] else "",
-            "cluster_id": int(row["cluster_id"]) if row["cluster_id"] is not None else -1,
-        })
-    db.create_table(TABLE_NAME, data=records, schema=schema)
 
 
-def clear_embeddings() -> None:
-    """Drop and recreate the embeddings table, clearing all vectors."""
-    db = lancedb.connect(settings.lance_path)
-    if table_exists(db, TABLE_NAME):
-        db.drop_table(TABLE_NAME)
+def write_embeddings(analysis_id: str, rows: list[dict]) -> None:
+    """
+    rows: dicts with chunk_id, article_id, vector, child_text, domain, publish_date.
+    Creates the analysis's table or appends to it.
+    """
+    if not rows:
+        return
+    normalised = _normalise(rows)
+    table = open_table(analysis_id)
+    if table is None:
+        _connect().create_table(
+            table_name(analysis_id), data=normalised, schema=_schema(len(rows[0]["vector"]))
+        )
+    else:
+        table.add(normalised)
+
+
+def read_all_embeddings(analysis_id: str) -> list[dict]:
+    """Return all rows of the analysis's table as a list of dicts."""
+    table = open_table(analysis_id)
+    if table is None:
+        return []
+    return table.to_pandas().to_dict(orient="records")
+
+
+def drop_embeddings(analysis_id: str) -> None:
+    db = _connect()
+    name = table_name(analysis_id)
+    if table_exists(db, name):
+        db.drop_table(name)
+
+
+def adopt_legacy_table(analysis_id: str) -> None:
+    """Copy the pre-analyses global table into the analysis's own table (idempotent)."""
+    db = _connect()
+    if not table_exists(db, LEGACY_TABLE_NAME):
+        return
+    data = db.open_table(LEGACY_TABLE_NAME).to_arrow().select(_COLUMNS)
+    db.create_table(table_name(analysis_id), data=data, mode="overwrite")
+
+
+def drop_legacy_table() -> None:
+    db = _connect()
+    if table_exists(db, LEGACY_TABLE_NAME):
+        db.drop_table(LEGACY_TABLE_NAME)
 
 
 def _normalise(rows: list[dict]) -> list[dict]:
     """Ensure all fields have correct Python types for Arrow ingestion."""
-    out = []
-    for r in rows:
-        out.append(
-            {
-                "chunk_id": str(r.get("chunk_id", "")),
-                "article_id": str(r.get("article_id", "")),
-                "vector": [float(v) for v in r["vector"]],
-                "child_text": str(r.get("child_text", "")),
-                "domain": str(r.get("domain", "") or ""),
-                "publish_date": str(r.get("publish_date", "") or ""),
-                "cluster_id": int(r.get("cluster_id", -1)),
-            }
-        )
-    return out
+    return [
+        {
+            "chunk_id": str(r.get("chunk_id", "")),
+            "article_id": str(r.get("article_id", "")),
+            "vector": [float(v) for v in r["vector"]],
+            "child_text": str(r.get("child_text", "")),
+            "domain": str(r.get("domain", "") or ""),
+            "publish_date": str(r.get("publish_date", "") or ""),
+        }
+        for r in rows
+    ]

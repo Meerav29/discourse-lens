@@ -6,7 +6,12 @@ import trafilatura
 from langdetect import LangDetectException, detect
 
 
-def extract_article(url: str, html: str) -> dict | None:
+def article_id(analysis_id: str, url: str) -> str:
+    """Stable per-analysis id, so the same URL can appear in several analyses."""
+    return hashlib.sha256(f"{analysis_id}:{url}".encode()).hexdigest()[:16]
+
+
+def extract_article(analysis_id: str, url: str, html: str) -> dict | None:
     """
     Extract clean article text from raw HTML using trafilatura.
     Returns an article dict, or None if the article fails filtering:
@@ -37,10 +42,9 @@ def extract_article(url: str, html: str) -> dict | None:
     meta = trafilatura.extract_metadata(html, default_url=url)
     title = meta.title if meta and meta.title else None
     domain = urlparse(url).netloc
-    article_id = hashlib.sha256(url.encode()).hexdigest()[:16]
 
     return {
-        "id": article_id,
+        "id": article_id(analysis_id, url),
         "url": url,
         "domain": domain,
         "title": title,

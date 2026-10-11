@@ -2,7 +2,7 @@
 UMAP projection + k-means clustering + cluster labelling.
 
 Steps:
-1. Load all vectors from LanceDB.
+1. Load the analysis's vectors from LanceDB.
 2. Run UMAP (2D).
 3. Try k-means for k in {5, 7, 10}; pick best silhouette score.
 4. For each chunk compute Euclidean distance to its cluster centroid.
@@ -13,15 +13,14 @@ Steps:
 
 from __future__ import annotations
 
-import sqlite3
-
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from umap import UMAP
 
 from backend.config import settings
-from backend.embedding.store import read_all_embeddings, update_cluster_ids
+from backend.db import connect
+from backend.embedding.store import read_all_embeddings
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -67,14 +66,12 @@ def _label_cluster(cluster_id: int, top_chunks: list[str]) -> str:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run_projection(db_path: str | None = None) -> None:
+def run_projection(analysis_id: str) -> None:
     """
     Full projection pipeline. Writes rows to the SQLite projections table.
     """
-    _db_path = db_path or settings.db_path
-
     # 1. Load embeddings
-    rows = read_all_embeddings()
+    rows = read_all_embeddings(analysis_id)
     if not rows:
         raise RuntimeError("No embeddings found in LanceDB — run embedding step first.")
 
@@ -111,20 +108,17 @@ def run_projection(db_path: str | None = None) -> None:
         except Exception:
             cluster_text_labels[cid] = f"cluster {cid}"
 
-    # 6. Update LanceDB cluster_ids
-    chunk_cluster_map = {chunk_ids[i]: int(cluster_labels_arr[i]) for i in range(len(chunk_ids))}
-    update_cluster_ids(chunk_cluster_map)
-
-    # 7. Write projections to SQLite
-    conn = sqlite3.connect(_db_path)
+    # 6. Write projections to SQLite
+    conn = connect()
     try:
         conn.executemany(
             "INSERT OR REPLACE INTO projections "
-            "(chunk_id, x, y, cluster_id, cluster_label, distance_from_centroid) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(chunk_id, analysis_id, x, y, cluster_id, cluster_label, distance_from_centroid) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     chunk_ids[i],
+                    analysis_id,
                     float(coords_2d[i, 0]),
                     float(coords_2d[i, 1]),
                     int(cluster_labels_arr[i]),

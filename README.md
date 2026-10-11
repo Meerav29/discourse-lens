@@ -90,7 +90,7 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
    - **Consensus** — most common terms per cluster, via TF-IDF
    - **Ask** — full-width chat interface for natural language queries against the indexed corpus; answers render as formatted markdown with cited sources
 4. Click any point on the cluster map to open the source article. Click a cluster label to filter the outliers sidebar. Use the **Ask** tab to query the corpus with natural language
-5. Click **New analysis** in the top bar to start over with a different topic. You'll be asked to confirm — this clears the current corpus entirely before the new pipeline runs
+5. Click **New analysis** in the top bar to start a different topic. Every analysis is kept in the database (`GET /api/analyses` lists them); the current UI shows one at a time
 6. Click **Export** in the top bar to download an Obsidian-compatible zip — a Canvas file with all articles plotted at their UMAP positions, and a vault folder with one Markdown note per article
 
 ---
@@ -116,6 +116,6 @@ Avoid topics that are too broad (`AI`, `climate change`) or too narrow (fewer th
 
 **Embeddings are slow** — You're running Ollama on CPU. Switch to OpenAI embeddings by setting `EMBEDDING_MODE=openai` and `OPENAI_API_KEY=your_key` in `.env`.
 
-**Chat returns "No corpus indexed yet"** — The analysis hasn't completed, or no articles passed the quality filter. Try re-running with a different topic.
+**Chat says "This analysis has no indexed corpus yet"** — The analysis hasn't completed, or no articles passed the quality filter. Try re-running with a different topic.
 
-**Second analysis returns stale data** — This should no longer happen. Each new job deletes all rows from `articles`, `chunks`, `projections` and drops the LanceDB vectors table before running. If you see stale data, stop the backend, delete `data/discourse.db` and `data/vectors/`, and restart.
+**Upgrading from an older version** — On first start the backend migrates the old single-corpus database into one analysis. It copies `data/discourse.db` and `data/vectors/` to `*.v1.bak` first; delete those once you're happy.
