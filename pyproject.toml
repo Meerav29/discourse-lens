@@ -1,0 +1,50 @@
+[project]
+name = "discourse-lens"
+version = "0.2.0"
+description = "Map the shape of any conversation: crawl, embed, cluster and query ~100 articles on a topic."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=1,<2",
+    "datasketch>=1.6",
+    "fastapi>=0.115",
+    "httpx>=0.27",
+    "lancedb>=0.20",
+    "langdetect>=1.0.9",
+    "numpy>=1.26",
+    "openai>=1.40",
+    "pandas>=2.2",
+    "playwright>=1.45",
+    "pyarrow>=15",
+    "pydantic-settings>=2.4",
+    "scikit-learn>=1.5",
+    "tiktoken>=0.7",
+    "trafilatura>=2.0",
+    "umap-learn>=0.5.6",
+    "uvicorn[standard]>=0.30",
+]
+
+[project.optional-dependencies]
+vertex = ["anthropic[vertex]>=1,<2"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["venv", "frontend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # long prompt strings; formatting handles the rest

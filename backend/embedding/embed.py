@@ -9,14 +9,13 @@ Returns list of dicts with chunk_id + vector.
 
 from __future__ import annotations
 
-import os
-from typing import Generator
+from collections.abc import Generator
 
 import httpx
 
+from backend.config import settings
+
 BATCH_SIZE = 32
-EMBEDDING_MODE = os.getenv("EMBEDDING_MODE", "local")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = "nomic-embed-text"
 
 # nomic-embed-text is trained with task prefixes; without them retrieval and
@@ -31,7 +30,7 @@ def _batched(items: list, size: int) -> Generator[list, None, None]:
 
 def _embed_local(texts: list[str]) -> list[list[float]]:
     """Call Ollama embed endpoint. Tries /api/embed (>=0.1.33) then falls back to /api/embeddings."""
-    url = f"{OLLAMA_BASE_URL}/api/embed"
+    url = f"{settings.ollama_base_url}/api/embed"
     resp = httpx.post(
         url,
         json={"model": OLLAMA_MODEL, "input": texts},
@@ -46,7 +45,7 @@ def _embed_local(texts: list[str]) -> list[list[float]]:
 
 def _embed_local_legacy(texts: list[str]) -> list[list[float]]:
     """Ollama <0.1.33 fallback: /api/embeddings, one text at a time."""
-    url = f"{OLLAMA_BASE_URL}/api/embeddings"
+    url = f"{settings.ollama_base_url}/api/embeddings"
     results = []
     for text in texts:
         resp = httpx.post(
@@ -63,7 +62,7 @@ def _embed_openai(texts: list[str]) -> list[list[float]]:
     """Call OpenAI embeddings API for a batch of texts."""
     from openai import OpenAI
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=settings.openai_api_key)
     resp = client.embeddings.create(
         model="text-embedding-3-small",
         input=texts,
@@ -75,7 +74,7 @@ def prepare_texts(texts: list[str], kind: str) -> list[str]:
     """Apply the model's task prefix. kind is 'document' or 'query'."""
     if kind not in _NOMIC_PREFIXES:
         raise ValueError(f"kind must be 'document' or 'query', got {kind!r}")
-    if EMBEDDING_MODE != "local":
+    if settings.embedding_mode != "local":
         return texts
     prefix = _NOMIC_PREFIXES[kind]
     return [prefix + t for t in texts]
@@ -90,12 +89,12 @@ def embed_chunks(chunks: list[dict], kind: str = "document") -> list[dict]:
     """
     results: list[dict] = []
 
-    embed_fn = _embed_local if EMBEDDING_MODE == "local" else _embed_openai
+    embed_fn = _embed_local if settings.embedding_mode == "local" else _embed_openai
 
     for batch in _batched(chunks, BATCH_SIZE):
         texts = prepare_texts([c["child_text"] for c in batch], kind)
         vectors = embed_fn(texts)
-        for chunk, vector in zip(batch, vectors):
+        for chunk, vector in zip(batch, vectors, strict=True):
             results.append({"chunk_id": chunk["id"], "vector": vector})
 
     return results

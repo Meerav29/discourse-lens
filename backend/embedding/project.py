@@ -13,29 +13,23 @@ Steps:
 
 from __future__ import annotations
 
-import math
-import os
 import sqlite3
 
 import numpy as np
-from umap import UMAP
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
+from umap import UMAP
 
+from backend.config import settings
 from backend.embedding.store import read_all_embeddings, update_cluster_ids
-
-DB_PATH = os.getenv("DB_PATH", "./data/discourse.db")
-UMAP_N_NEIGHBORS = int(os.getenv("UMAP_N_NEIGHBORS", "15"))
-KMEANS_K = os.getenv("KMEANS_K", "auto")   # "auto" | integer string
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _best_k(vectors: np.ndarray) -> int:
-    if KMEANS_K != "auto":
-        return int(KMEANS_K)
+    if settings.kmeans_k != "auto":
+        return int(settings.kmeans_k)
 
     candidates = [k for k in (5, 7, 10) if k < len(vectors)]
     if not candidates:
@@ -57,7 +51,7 @@ def _euclidean(a: np.ndarray, b: np.ndarray) -> float:
 
 def _label_cluster(cluster_id: int, top_chunks: list[str]) -> str:
     """Ask Claude for a 2-3 word label for this cluster."""
-    from backend.claude_client import get_client, get_model
+    from backend.claude_client import complete
 
     excerpts = "\n\n".join(f"- {t[:300]}" for t in top_chunks)
     prompt = (
@@ -66,12 +60,7 @@ def _label_cluster(cluster_id: int, top_chunks: list[str]) -> str:
         "Give a 2-3 word descriptive label that captures the main theme of this cluster. "
         "Respond with ONLY the label, nothing else."
     )
-    msg = get_client().messages.create(
-        model=get_model(),
-        max_tokens=20,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return msg.content[0].text.strip()
+    return complete(prompt, max_tokens=2048, effort="low")
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +71,7 @@ def run_projection(db_path: str | None = None) -> None:
     """
     Full projection pipeline. Writes rows to the SQLite projections table.
     """
-    _db_path = db_path or DB_PATH
+    _db_path = db_path or settings.db_path
 
     # 1. Load embeddings
     rows = read_all_embeddings()
@@ -94,7 +83,7 @@ def run_projection(db_path: str | None = None) -> None:
     child_texts = {r["chunk_id"]: r["child_text"] for r in rows}
 
     # 2. UMAP
-    n_neighbors = min(UMAP_N_NEIGHBORS, len(vectors) - 1)
+    n_neighbors = min(settings.umap_n_neighbors, len(vectors) - 1)
     reducer = UMAP(n_components=2, n_neighbors=n_neighbors, min_dist=0.1, random_state=42)
     coords_2d = reducer.fit_transform(vectors)   # shape (N, 2)
 

@@ -1,6 +1,6 @@
 import pytest
-from backend.export import article_slug, build_canvas, build_vault_files
 
+from backend.export import article_slug, build_canvas, build_vault_files
 
 # ── article_slug ────────────────────────────────────────────────────────────
 

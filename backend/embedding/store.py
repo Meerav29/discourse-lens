@@ -7,19 +7,28 @@ Table schema (per PLANNING.md §4.2):
 
 from __future__ import annotations
 
-import os
-
 import lancedb
 import pyarrow as pa
 
-LANCE_PATH = os.getenv("LANCE_PATH", "./data/vectors")
+from backend.config import settings
+
 TABLE_NAME = "embeddings"
-MAX_ARTICLES = int(os.getenv("MAX_ARTICLES", "120"))
 
 
-def _get_table(db: lancedb.DBConnection) -> lancedb.table.Table:
-    names = db.table_names()
-    if TABLE_NAME in names:
+def table_exists(db: lancedb.DBConnection, name: str) -> bool:
+    """list_tables() is paginated — walk every page."""
+    page_token = None
+    while True:
+        resp = db.list_tables(page_token=page_token)
+        if name in resp.tables:
+            return True
+        page_token = resp.page_token
+        if not page_token:
+            return False
+
+
+def _get_table(db: lancedb.DBConnection) -> lancedb.table.Table | None:
+    if table_exists(db, TABLE_NAME):
         return db.open_table(TABLE_NAME)
     return None
 
@@ -33,7 +42,7 @@ def write_embeddings(rows: list[dict]) -> None:
     if not rows:
         return
 
-    db = lancedb.connect(LANCE_PATH)
+    db = lancedb.connect(settings.lance_path)
     table = _get_table(db)
 
     if table is None:
@@ -60,7 +69,7 @@ def write_embeddings(rows: list[dict]) -> None:
 
 def read_all_embeddings() -> list[dict]:
     """Return all rows from the embeddings table as a list of dicts."""
-    db = lancedb.connect(LANCE_PATH)
+    db = lancedb.connect(settings.lance_path)
     table = _get_table(db)
     if table is None:
         return []
@@ -75,7 +84,7 @@ def update_cluster_ids(chunk_cluster_map: dict[str, int]) -> None:
     if not chunk_cluster_map:
         return
 
-    db = lancedb.connect(LANCE_PATH)
+    db = lancedb.connect(settings.lance_path)
     table = _get_table(db)
     if table is None:
         return
@@ -98,7 +107,6 @@ def update_cluster_ids(chunk_cluster_map: dict[str, int]) -> None:
             pa.field("cluster_id", pa.int32()),
         ]
     )
-    import pyarrow as pa2
     records = []
     for _, row in df.iterrows():
         records.append({
@@ -115,8 +123,8 @@ def update_cluster_ids(chunk_cluster_map: dict[str, int]) -> None:
 
 def clear_embeddings() -> None:
     """Drop and recreate the embeddings table, clearing all vectors."""
-    db = lancedb.connect(LANCE_PATH)
-    if TABLE_NAME in db.table_names():
+    db = lancedb.connect(settings.lance_path)
+    if table_exists(db, TABLE_NAME):
         db.drop_table(TABLE_NAME)
 
 

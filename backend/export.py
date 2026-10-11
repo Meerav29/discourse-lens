@@ -7,7 +7,6 @@ from __future__ import annotations
 import re
 import statistics
 
-
 CANVAS_SCALE = 200     # UMAP units → canvas pixels
 NODE_WIDTH = 200
 NODE_HEIGHT = 80

@@ -3,7 +3,7 @@ import time
 from urllib.parse import urlparse
 
 import trafilatura
-from langdetect import detect, LangDetectException
+from langdetect import LangDetectException, detect
 
 
 def extract_article(url: str, html: str) -> dict | None:
@@ -18,7 +18,6 @@ def extract_article(url: str, html: str) -> dict | None:
         html,
         include_comments=False,
         include_tables=True,
-        no_fallback=False,
     )
     if not text:
         return None

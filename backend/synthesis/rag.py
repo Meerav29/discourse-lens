@@ -12,11 +12,10 @@ Steps:
 
 from __future__ import annotations
 
-import os
 import sqlite3
 
-DB_PATH = os.getenv("DB_PATH", "./data/discourse.db")
-LANCE_PATH = os.getenv("LANCE_PATH", "./data/vectors")
+from backend.config import settings
+
 TABLE_NAME = "embeddings"
 
 
@@ -37,8 +36,8 @@ def order_and_dedupe_by_article(rows: list[dict], ranked_chunk_ids: list[str]) -
 
 
 def query_corpus(query: str, db_path: str | None = None, top_k: int | None = None) -> dict:
-    _db_path = db_path or DB_PATH
-    _top_k = top_k or int(os.getenv("RAG_TOP_K", "15"))
+    _db_path = db_path or settings.db_path
+    _top_k = top_k or settings.rag_top_k
 
     # --- 1. Embed the query ---
     try:
@@ -51,8 +50,9 @@ def query_corpus(query: str, db_path: str | None = None, top_k: int | None = Non
     # --- 2. Search LanceDB ---
     try:
         import lancedb
-        db = lancedb.connect(LANCE_PATH)
-        if TABLE_NAME not in db.table_names():
+        db = lancedb.connect(settings.lance_path)
+        from backend.embedding.store import table_exists
+        if not table_exists(db, TABLE_NAME):
             return {"answer": "No corpus indexed yet. Please run an analysis first.", "citations": []}
         table = db.open_table(TABLE_NAME)
         results_df = table.search(query_vector).limit(_top_k).to_pandas()
@@ -89,10 +89,8 @@ def query_corpus(query: str, db_path: str | None = None, top_k: int | None = Non
         return {"answer": "Could not retrieve context from the corpus.", "citations": []}
 
     # --- 5. Assemble context and call Claude ---
-    from backend.synthesis.prompts import (
-        SYSTEM_PROMPT, RAG_USER_TEMPLATE, CONTEXT_ITEM_TEMPLATE
-    )
-    from backend.claude_client import get_client, get_model
+    from backend.claude_client import complete
+    from backend.synthesis.prompts import CONTEXT_ITEM_TEMPLATE, RAG_USER_TEMPLATE, SYSTEM_PROMPT
 
     context_parts = []
     for i, row in enumerate(deduped, start=1):
@@ -111,13 +109,7 @@ def query_corpus(query: str, db_path: str | None = None, top_k: int | None = Non
 
     user_message = RAG_USER_TEMPLATE.format(context=context_str, query=query)
 
-    response = get_client().messages.create(
-        model=get_model(),
-        max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
-    )
-    answer = response.content[0].text.strip()
+    answer = complete(user_message, system=SYSTEM_PROMPT, max_tokens=16000, effort="medium")
 
     # --- 6. Build citations list ---
     citations = [

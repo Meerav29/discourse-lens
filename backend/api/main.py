@@ -2,32 +2,37 @@ import asyncio
 import hashlib
 import io
 import json as json_lib
-import os
 import re
 import sqlite3
+import sys
 import time
 import uuid
 import zipfile
+from contextlib import asynccontextmanager
 from pathlib import Path
-from dotenv import load_dotenv
+
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import asyncio
-import sys
+
+from backend.config import settings
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-load_dotenv()
 
-DB_PATH = os.getenv("DB_PATH", "./data/discourse.db")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    Path(settings.db_path).parent.mkdir(parents=True, exist_ok=True)
+    init_db()
+    yield
 
-app = FastAPI(title="Discourse Lens API")
+
+app = FastAPI(title="Discourse Lens API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,7 +44,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(settings.db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -65,16 +70,6 @@ def update_job(job_id: str, **kwargs) -> None:
     conn.execute(f"UPDATE jobs SET {sets} WHERE id=?", vals)
     conn.commit()
     conn.close()
-
-
-# ---------------------------------------------------------------------------
-# Startup
-# ---------------------------------------------------------------------------
-
-@app.on_event("startup")
-async def startup() -> None:
-    Path("data").mkdir(exist_ok=True)
-    init_db()
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +218,7 @@ def chat(req: ChatRequest):
 @app.get("/api/export")
 def export_obsidian():
     from fastapi.responses import StreamingResponse
+
     from backend.export import build_canvas, build_vault_files
 
     conn = get_db()
@@ -342,11 +338,11 @@ async def stream_job(job_id: str):
 
 async def run_pipeline(job_id: str, topic: str) -> None:
     """Full ingestion + processing pipeline: search → crawl → extract → chunk → dedup."""
-    from backend.ingestion.search import collect_urls
     from backend.ingestion.crawler import crawl_urls
     from backend.ingestion.extractor import extract_article
-    from backend.processing.metadata import extract_publish_date
+    from backend.ingestion.search import collect_urls
     from backend.processing.dedup import chunk_and_dedup
+    from backend.processing.metadata import extract_publish_date
 
     try:
         # Clear previous corpus before starting fresh
@@ -373,7 +369,7 @@ async def run_pipeline(job_id: str, topic: str) -> None:
         def _extract_and_store() -> tuple[int, list[dict]]:
             ok_count = 0
             ok_articles: list[dict] = []
-            conn = sqlite3.connect(DB_PATH)
+            conn = sqlite3.connect(settings.db_path)
             try:
                 for item in crawled:
                     url = item["url"]
@@ -418,7 +414,7 @@ async def run_pipeline(job_id: str, topic: str) -> None:
 
         def _chunk_and_dedup(articles: list[dict]) -> None:
             chunks = chunk_and_dedup(articles)
-            conn = sqlite3.connect(DB_PATH)
+            conn = sqlite3.connect(settings.db_path)
             try:
                 conn.executemany(
                     "INSERT OR IGNORE INTO chunks "
@@ -441,7 +437,7 @@ async def run_pipeline(job_id: str, topic: str) -> None:
             from backend.embedding.embed import embed_chunks
             from backend.embedding.store import write_embeddings
 
-            conn = sqlite3.connect(DB_PATH)
+            conn = sqlite3.connect(settings.db_path)
             conn.row_factory = sqlite3.Row
             try:
                 rows = conn.execute(
@@ -495,7 +491,7 @@ async def run_pipeline(job_id: str, topic: str) -> None:
 
         def _project() -> None:
             from backend.embedding.project import run_projection
-            run_projection(db_path=DB_PATH)
+            run_projection(db_path=settings.db_path)
 
         await asyncio.to_thread(_project)
 

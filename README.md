@@ -6,7 +6,7 @@ Discourse Lens takes a topic string as input, crawls ~100 relevant articles from
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.12 and [uv](https://docs.astral.sh/uv/)
 - Node.js 18+
 - [Ollama](https://ollama.com) (for local embeddings) — or an OpenAI API key
 - A [Brave Search API key](https://brave.com/search/api) (free tier: 2000 queries/month)
@@ -21,11 +21,11 @@ Discourse Lens takes a topic string as input, crawls ~100 relevant articles from
 ```bash
 git clone https://github.com/Meerav29/discourse-lens.git
 cd discourse-lens
-python -m venv venv
-source venv/Scripts/activate   # Windows Git Bash
-# source venv/bin/activate     # Mac/Linux
-pip install -r requirements.txt
+uv sync                        # creates .venv from uv.lock
+uv run playwright install chromium
 ```
+
+Using Vertex AI for Claude? `uv sync --extra vertex` instead.
 
 **2. Install frontend dependencies**
 
@@ -65,8 +65,7 @@ Open two terminals.
 **Terminal 1 — Backend:**
 
 ```bash
-source venv/Scripts/activate   # Windows Git Bash / source venv/bin/activate on Mac/Linux
-python -m uvicorn backend.api.main:app --reload --port 8001
+uv run uvicorn backend.api.main:app --reload --port 8001
 ```
 
 **Terminal 2 — Frontend:**

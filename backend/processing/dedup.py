@@ -11,7 +11,6 @@ import re
 
 from datasketch import MinHash, MinHashLSH
 
-
 NUM_PERM = 128
 THRESHOLD = 0.85
 

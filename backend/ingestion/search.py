@@ -1,33 +1,21 @@
-import os
 import time
 
 import httpx
-from dotenv import load_dotenv
 
-from backend.claude_client import get_client, get_model
-
-load_dotenv()
-
-_BRAVE_API_KEY = os.getenv("BRAVE_API_KEY")
-_MAX_ARTICLES = int(os.getenv("MAX_ARTICLES", "120"))
+from backend.claude_client import complete
+from backend.config import settings
 
 
 def generate_queries(topic: str) -> list[str]:
     """Use Claude to generate 6 diverse search queries for the topic."""
-    response = get_client().messages.create(
-        model=get_model(),
-        max_tokens=512,
-        messages=[{
-            "role": "user",
-            "content": (
-                f"Generate 6 diverse search queries to comprehensively cover the topic: '{topic}'.\n"
-                "The queries should approach the topic from different angles: historical context, "
-                "current debates, key figures, recent research, criticism, and applications.\n"
-                "Return ONLY the queries, one per line, no numbering or extra text."
-            ),
-        }],
+    text = complete(
+        f"Generate 6 diverse search queries to comprehensively cover the topic: '{topic}'.\n"
+        "The queries should approach the topic from different angles: historical context, "
+        "current debates, key figures, recent research, criticism, and applications.\n"
+        "Return ONLY the queries, one per line, no numbering or extra text.",
+        max_tokens=4096,
+        effort="low",
     )
-    text = response.content[0].text.strip()
     queries = [q.strip() for q in text.split("\n") if q.strip()]
     return queries[:6]
 
@@ -41,7 +29,7 @@ def brave_search(query: str, count: int = 20, max_retries: int = 3) -> list[str]
     headers = {
         "Accept": "application/json",
         "Accept-Encoding": "gzip",
-        "X-Subscription-Token": _BRAVE_API_KEY,
+        "X-Subscription-Token": settings.brave_api_key,
     }
     params = {"q": query, "count": count, "text_decorations": "false"}
 
@@ -81,4 +69,4 @@ def collect_urls(topic: str) -> list[str]:
                     urls.append(url)
         except Exception:
             continue  # failed query — skip, don't crash
-    return urls[:_MAX_ARTICLES]
+    return urls[:settings.max_articles]

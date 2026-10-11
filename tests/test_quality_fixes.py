@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from backend.processing.dedup import chunk_and_dedup
-from backend.embedding import embed
-from backend.synthesis.rag import order_and_dedupe_by_article
 from backend.api.main import fetch_outliers
-
+from backend.config import settings
+from backend.embedding import embed
+from backend.processing.dedup import chunk_and_dedup
+from backend.synthesis.rag import order_and_dedupe_by_article
 
 # ── cross-article dedup ──────────────────────────────────────────────────────
 
@@ -47,17 +47,17 @@ def test_dedup_skips_empty_text():
 # ── nomic task prefixes ──────────────────────────────────────────────────────
 
 def test_nomic_document_prefix(monkeypatch):
-    monkeypatch.setattr(embed, "EMBEDDING_MODE", "local")
+    monkeypatch.setattr(settings, "embedding_mode", "local")
     assert embed.prepare_texts(["hi"], "document") == ["search_document: hi"]
 
 
 def test_nomic_query_prefix(monkeypatch):
-    monkeypatch.setattr(embed, "EMBEDDING_MODE", "local")
+    monkeypatch.setattr(settings, "embedding_mode", "local")
     assert embed.prepare_texts(["hi"], "query") == ["search_query: hi"]
 
 
 def test_openai_has_no_prefix(monkeypatch):
-    monkeypatch.setattr(embed, "EMBEDDING_MODE", "openai")
+    monkeypatch.setattr(settings, "embedding_mode", "openai")
     assert embed.prepare_texts(["hi"], "query") == ["hi"]
 
 
