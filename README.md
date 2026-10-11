@@ -1,13 +1,13 @@
 # discourse-lens
 
-Discourse Lens takes a topic string as input, crawls ~100 relevant articles from the web, and surfaces patterns in the discourse through semantic visualization. You get five views — a cluster map, temporal drift, outlier finder, consensus bars, and a full-width chat interface — all running locally.
+Discourse Lens takes a topic, reads ~100 relevant articles from the web, and maps the conversation: which camps exist, how coverage has moved over time, which articles don't fit, and what each camp talks about. You can then ask questions answered only from those articles. Everything runs locally except the search, embedding and Claude API calls.
 
 ---
 
 ## Requirements
 
 - Python 3.12 and [uv](https://docs.astral.sh/uv/)
-- Node.js 18+
+- Node.js 20.19+ (Vite 8)
 - [Ollama](https://ollama.com) (for local embeddings) — or an OpenAI API key
 - A [Brave Search API key](https://brave.com/search/api) (free tier: 2000 queries/month)
 - An [Anthropic API key](https://console.anthropic.com) (for chat and cluster labelling)
@@ -27,11 +27,12 @@ uv run playwright install chromium
 
 Using Vertex AI for Claude? `uv sync --extra vertex` instead.
 
-**2. Install frontend dependencies**
+**2. Build the frontend**
 
 ```bash
 cd frontend
 npm install
+npm run build
 cd ..
 ```
 
@@ -60,38 +61,45 @@ ANTHROPIC_API_KEY=your_key_here
 
 ## Running
 
-Open two terminals.
-
-**Terminal 1 — Backend:**
-
 ```bash
-uv run uvicorn backend.api.main:app --reload --port 8001
+uv run uvicorn backend.api.main:app --port 8001
 ```
 
-**Terminal 2 — Frontend:**
+Then open [http://localhost:8001](http://localhost:8001). The backend serves the built app and the API from one address.
+
+### Working on the frontend
+
+Run the backend as above, plus the Vite dev server with hot reload (it forwards `/api` to port 8001):
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-Then open [http://localhost:5173](http://localhost:5173) in your browser.
+and open [http://localhost:5173](http://localhost:5173). After changing the backend API, regenerate the typed client:
+
+```bash
+uv run python -m scripts.export_openapi
+cd frontend && npm run gen:api
+```
+
+Checks: `uv run pytest`, `uv run ruff check backend tests`, and in `frontend/`: `npm run check`, `npx vitest run`, `npm run lint`.
 
 ---
 
 ## Using it
 
-1. Type a topic into the input field (e.g. `mechanistic interpretability in large language models`) and click **Analyze Discourse**
-2. The pipeline runs in the background — crawling, embedding, and clustering ~100 articles. This takes **3–8 minutes** depending on your connection and machine
-3. A progress bar shows the current stage. Once complete, five tabs appear:
-   - **Cluster Map** — semantic clusters of the discourse, plotted in 2D
-   - **Temporal Drift** — how the discourse has shifted over time
-   - **Outliers** — articles furthest from any cluster centroid
-   - **Consensus** — most common terms per cluster, via TF-IDF
-   - **Ask** — full-width chat interface for natural language queries against the indexed corpus; answers render as formatted markdown with cited sources
-4. Click any point on the cluster map to open the source article. Click a cluster label to filter the outliers sidebar. Use the **Ask** tab to query the corpus with natural language
-5. Click **New analysis** in the top bar to start a different topic. Every analysis is kept in the database (`GET /api/analyses` lists them); the current UI shows one at a time
-6. Click **Export** in the top bar to download an Obsidian-compatible zip — a Canvas file with all articles plotted at their UMAP positions, and a vault folder with one Markdown note per article
+1. On the home page, type a topic (e.g. `mechanistic interpretability in large language models`) and choose **Map this topic**.
+2. A map takes **3–8 minutes**. You'll see each step as it happens: the search queries, pages crawled, articles kept or skipped (and why), and clusters as they're named. You can leave the page, or **Cancel this map**.
+3. When it's done you get five views of the same map:
+   - **Map**: articles that make similar arguments sit close together; contour lines outline each cluster. Switch to **Table** for a plain list.
+   - **Timeline**: articles per month or year, by cluster.
+   - **Outliers**: articles furthest from the middle of their cluster.
+   - **Key terms**: the words each cluster uses far more than the rest.
+   - **Ask**: questions answered only from this map's articles, with sources.
+4. Pick a cluster in the **Clusters** panel to focus every view on it. Click any article to read it in a side panel. The address bar keeps the view, cluster and open article, so links and reloads land in the same place.
+5. **Export to Obsidian** downloads a vault: a Canvas of the map plus one note per article.
+6. Every map is kept. **All maps** returns to the list, where you can open or delete them.
 
 ---
 
