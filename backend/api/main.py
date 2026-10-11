@@ -8,6 +8,7 @@ import time
 import uuid
 import zipfile
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException, Response
@@ -31,7 +32,13 @@ async def lifespan(_app: FastAPI):
     pipeline.cancel_all()
 
 
-app = FastAPI(title="Discourse Lens API", lifespan=lifespan)
+app = FastAPI(
+    title="Discourse Lens API",
+    lifespan=lifespan,
+    # Operation ids = route function names, so the generated client reads
+    # listAnalyses() rather than listAnalysesApiAnalysesGet().
+    generate_unique_id_function=lambda route: route.name,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -481,3 +488,13 @@ def export_obsidian(analysis_id: str):
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{folder}.zip"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Frontend (registered last so it never shadows an API route)
+# ---------------------------------------------------------------------------
+
+if (Path(settings.frontend_build)).is_dir():
+    from backend.api.spa import spa_router
+
+    app.include_router(spa_router(Path(settings.frontend_build)))

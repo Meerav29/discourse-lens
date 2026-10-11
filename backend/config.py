@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     kmeans_k: str = "auto"  # "auto" | integer string
     rag_top_k: int = 15
 
+    # Built frontend served at / (cd frontend && npm run build)
+    frontend_build: str = "./frontend/build"
+
     # Frontend dev server origin allowed by CORS
     cors_origins: list[str] = ["http://localhost:5173"]
 

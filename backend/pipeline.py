@@ -157,7 +157,7 @@ def _search(ctx: RunContext, topic: str) -> list[str]:
         if new_urls is None:
             ctx.event("warning", f"Search failed: {query}")
         else:
-            ctx.event("query", f"{query} — {new_urls} new results")
+            ctx.event("query", f"{query} ({new_urls} new results)")
         ctx.progress(SEARCH, done / total, f"Searched {done} of {total} queries")
         ctx.check()
 
