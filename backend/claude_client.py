@@ -13,6 +13,7 @@ Vertex AI setup:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from functools import lru_cache
 from typing import Literal
 
@@ -87,8 +88,44 @@ def complete(
     else:
         response = client.messages.create(**kwargs)
 
-    if response.stop_reason == "refusal":
-        category = response.stop_details.category if response.stop_details else None
-        raise ClaudeRefusal(f"Claude declined the request (category: {category})")
-
+    _raise_on_refusal(response)
     return "".join(b.text for b in response.content if b.type == "text").strip()
+
+
+def stream_text(
+    messages: list[dict],
+    *,
+    system: str | None = None,
+    max_tokens: int = 16000,
+    effort: Effort = "low",
+) -> Iterator[str]:
+    """
+    Stream a reply's text as it's generated (thinking happens before the first
+    text and isn't shown). Raises ClaudeRefusal at the end if the model declined.
+    """
+    kwargs = dict(
+        model=get_model(),
+        max_tokens=max_tokens,
+        messages=messages,
+        output_config={"effort": effort},
+    )
+    if system:
+        kwargs["system"] = system
+
+    client = get_client()
+    if settings.claude_backend == "anthropic":
+        manager = client.beta.messages.stream(
+            betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kwargs
+        )
+    else:
+        manager = client.messages.stream(**kwargs)
+    with manager as stream:
+        yield from stream.text_stream
+        final = stream.get_final_message()
+    _raise_on_refusal(final)
+
+
+def _raise_on_refusal(message) -> None:
+    if message.stop_reason == "refusal":
+        category = message.stop_details.category if message.stop_details else None
+        raise ClaudeRefusal(f"Claude declined the request (category: {category})")

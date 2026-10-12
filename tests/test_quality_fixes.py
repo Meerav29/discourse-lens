@@ -4,7 +4,7 @@ from conftest import prose
 from backend.config import settings
 from backend.embedding import embed
 from backend.processing.dedup import chunk_and_dedup
-from backend.synthesis.rag import order_and_dedupe_by_article
+from backend.synthesis.chat import order_and_dedupe_by_article
 
 # ── cross-article dedup ──────────────────────────────────────────────────────
 
@@ -89,3 +89,23 @@ def test_syndicated_copy_with_different_intro_is_a_duplicate():
         {"id": "other", "raw_text": prose(2)},
     ]
     assert find_duplicate_articles(articles) == {"copy": "orig"}
+
+
+def test_edited_reprint_is_a_duplicate_but_related_article_is_not():
+    """An edited reprint keeps most of the text; a different article on the
+    same subject shares only scattered phrases."""
+    from backend.processing.dedup import find_duplicate_articles
+
+    original = prose(1, words=600)
+    words = original.split()
+    # Reprint: new intro, a trimmed middle, a new footer.
+    reprint = " ".join(["This story first appeared elsewhere."] + words[:250] + words[350:]
+                       + ["Republished under a Creative Commons licence."])
+    related = " ".join(words[:60]) + " " + prose(3, words=540)  # quotes the original's opening
+
+    found = find_duplicate_articles([
+        {"id": "orig", "raw_text": original},
+        {"id": "reprint", "raw_text": reprint},
+        {"id": "related", "raw_text": related},
+    ])
+    assert found == {"reprint": "orig"}

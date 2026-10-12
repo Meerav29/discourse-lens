@@ -83,6 +83,8 @@ uv run python -m scripts.export_openapi
 cd frontend && npm run gen:api
 ```
 
+How answers are found: `backend/synthesis/chat.py` (hybrid search: vector similarity plus BM25 keyword search, fused by reciprocal rank).
+
 How maps are built: `backend/topics.py` (article vectors → UMAP → HDBSCAN → c-TF-IDF, BERTopic's recipe without PyTorch) and `backend/embedding/project.py` (naming topics with Claude).
 
 Checks: `uv run pytest`, `uv run ruff check backend tests`, and in `frontend/`: `npm run check`, `npx vitest run`, `npm run lint`.
@@ -98,7 +100,7 @@ Checks: `uv run pytest`, `uv run ruff check backend tests`, and in `frontend/`: 
    - **Timeline**: articles per month or year, by cluster.
    - **Outliers**: articles furthest from the middle of their cluster.
    - **Key terms**: each topic's one-line summary and the words it uses far more than the others.
-   - **Ask**: questions answered only from this map's articles, with sources.
+   - **Ask**: questions answered only from this map's articles. Answers stream in as they're written, with numbered citations like **[3]**; click one to read that article. Follow-up questions build on earlier answers, and a citation number means the same article for the whole conversation. Conversations are saved with the map.
 4. Pick a topic in the **Clusters** panel to focus every view on it (and read its summary). Articles that don't fit any topic well are grouped as **Unclustered** rather than forced into one. Click any article to read it in a side panel. The address bar keeps the view, cluster and open article, so links and reloads land in the same place.
 5. **Export to Obsidian** downloads a vault: a Canvas of the map plus one note per article.
 6. Every map is kept. **All maps** returns to the list, where you can open or delete them.
@@ -125,6 +127,8 @@ Avoid topics that are too broad (`AI`, `climate change`) or too narrow (fewer th
 **Cluster labels show as "cluster 0", "cluster 1"...** — The Anthropic API call for labelling failed. Check your `ANTHROPIC_API_KEY`.
 
 **Embeddings are slow** — You're running Ollama on CPU. Switch to OpenAI embeddings by setting `EMBEDDING_MODE=openai` and `OPENAI_API_KEY=your_key` in `.env`.
+
+**Answers are slow to start or too brief** — `CHAT_EFFORT` in `.env` sets how much the model reasons before answering (`low`, `medium` (default), `high`). In testing, `medium` started answering in about a second, same as `low`.
 
 **Chat says "This analysis has no indexed corpus yet"** — The analysis hasn't completed, or no articles passed the quality filter. Try re-running with a different topic.
 

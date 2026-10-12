@@ -58,7 +58,11 @@ def mark_duplicates(chunks: list[dict]) -> list[dict]:
     return chunks
 
 
-ARTICLE_THRESHOLD = 0.8
+# Word 3-shingle Jaccard. Measured across real maps (~7,000 article pairs):
+# republished copies scored 0.52-1.0 (an edited WLRN reprint of a Conversation
+# piece: 0.77; two arXiv versions of one paper: 0.52); distinct pages that
+# merely share a site template stayed below 0.4.
+ARTICLE_THRESHOLD = 0.5
 
 
 def _word_shingles(text: str, k: int = 3) -> set[bytes]:
@@ -76,6 +80,7 @@ def find_duplicate_articles(
     Returns {duplicate_id: id_of_the_earlier_article_it_copies}.
     """
     lsh = MinHashLSH(threshold=threshold, num_perm=NUM_PERM)
+    kept: dict[str, MinHash] = {}
     duplicates: dict[str, str] = {}
     for art in articles:
         text = art.get("raw_text") or ""
@@ -84,11 +89,13 @@ def find_duplicate_articles(
         m = MinHash(num_perm=NUM_PERM)
         for shingle in _word_shingles(text):
             m.update(shingle)
-        match = lsh.query(m)
-        if match:
-            duplicates[art["id"]] = match[0]
+        # LSH buckets are approximate; confirm candidates by their estimated Jaccard.
+        matches = [c for c in lsh.query(m) if m.jaccard(kept[c]) >= threshold]
+        if matches:
+            duplicates[art["id"]] = max(matches, key=lambda c: m.jaccard(kept[c]))
         else:
             lsh.insert(art["id"], m)
+            kept[art["id"]] = m
     return duplicates
 
 

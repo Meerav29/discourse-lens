@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     umap_n_neighbors: int = 15
     kmeans_k: str = "auto"  # "auto" | integer string
     rag_top_k: int = 15
+    # Thinking effort for chat answers: low answers sooner, medium reasons more.
+    chat_effort: Literal["low", "medium", "high"] = "medium"
 
     # Built frontend served at / (cd frontend && npm run build)
     frontend_build: str = "./frontend/build"

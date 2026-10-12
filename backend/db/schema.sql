@@ -1,4 +1,4 @@
--- Schema version 4 (PRAGMA user_version = 4): every row belongs to an analysis.
+-- Schema version 5 (PRAGMA user_version = 5): every row belongs to an analysis.
 -- Deleting an analysis cascades to everything it collected
 -- (requires PRAGMA foreign_keys = ON, set by backend.db.connect).
 
@@ -81,3 +81,14 @@ CREATE TABLE IF NOT EXISTS analysis_events (
   url          TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_events_analysis ON analysis_events(analysis_id, id);
+
+-- Ask: saved conversation per analysis (a turn is stored once its answer completes)
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  role         TEXT NOT NULL,      -- user | assistant
+  text         TEXT NOT NULL,
+  sources      TEXT,               -- assistant only: JSON [{n, article_id, url, title, domain, publish_date, cited}]
+  created_ts   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_analysis ON chat_messages(analysis_id, id);

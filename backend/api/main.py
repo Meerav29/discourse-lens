@@ -126,18 +126,27 @@ class Article(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=2000)
+    question: str = Field(min_length=1, max_length=2000)
 
 
-class Citation(BaseModel):
+class ChatSource(BaseModel):
+    """An excerpt the answer could cite as [n]."""
+
+    n: int
+    article_id: str
     url: str
     title: str
     domain: str
+    publish_date: str | None
+    cited: bool | None = None  # set once the answer is complete
 
 
-class ChatResponse(BaseModel):
-    answer: str
-    citations: list[Citation]
+class ChatMessage(BaseModel):
+    id: int
+    role: Literal["user", "assistant"]
+    text: str
+    sources: list[ChatSource] | None
+    created_ts: int
 
 
 # ---------------------------------------------------------------------------
@@ -364,21 +373,84 @@ def get_article(analysis_id: str, article_id: str) -> Article:
     return Article(**dict(row))
 
 
-@app.post("/api/analyses/{analysis_id}/chat")
-def chat(analysis_id: str, req: ChatRequest) -> ChatResponse:
-    from backend.synthesis.rag import NoCorpusError, query_corpus
+@app.get("/api/analyses/{analysis_id}/chat")
+def get_chat(analysis_id: str) -> list[ChatMessage]:
+    """The saved conversation for this analysis, oldest first."""
+    from backend.synthesis.chat import load_history
 
     conn = connect()
     try:
         _get_analysis(conn, analysis_id)
     finally:
         conn.close()
+    return [ChatMessage(**m) for m in load_history(analysis_id)]
+
+
+@app.delete("/api/analyses/{analysis_id}/chat", status_code=204)
+def clear_chat(analysis_id: str) -> Response:
+    from backend.synthesis.chat import clear_history
+
+    conn = connect()
     try:
-        return ChatResponse(**query_corpus(analysis_id, req.query))
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    clear_history(analysis_id)
+    return Response(status_code=204)
+
+
+def _sse(event: str, data: object) -> str:
+    return f"event: {event}\ndata: {json_lib.dumps(data)}\n\n"
+
+
+@app.post(
+    "/api/analyses/{analysis_id}/chat",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}}},
+)
+def ask(analysis_id: str, req: ChatRequest):
+    """
+    Ask a question; the answer streams as server-sent events:
+      sources — the numbered excerpts the answer may cite (ChatSource[])
+      delta   — {"text": ...}, a piece of the answer as it's written
+      done    — the saved answer (ChatMessage), with each source's `cited` set
+      error   — {"detail": ...}; nothing is saved
+    The question and answer are saved together only when the answer completes.
+    """
+    from dataclasses import asdict
+
+    from backend.synthesis.chat import NoCorpusError, answer_stream, load_history, save_turn
+
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+
+    question = req.question.strip()
+    history = load_history(analysis_id)
+    try:
+        sources, text_stream = answer_stream(analysis_id, question, history)
     except NoCorpusError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Chat failed: {e}") from e
+        raise HTTPException(status_code=502, detail=f"Couldn't search the corpus: {e}") from e
+
+    def events():
+        yield _sse("sources", [{k: v for k, v in asdict(s).items() if k != "excerpt"}
+                               for s in sources])
+        parts: list[str] = []
+        try:
+            for piece in text_stream:
+                parts.append(piece)
+                yield _sse("delta", {"text": piece})
+        except Exception as e:
+            yield _sse("error", {"detail": f"The answer stopped early: {e}"})
+            return
+        message = save_turn(analysis_id, question, "".join(parts).strip(), sources)
+        yield _sse("done", message)
+
+    return StreamingResponse(events(), media_type="text/event-stream")
 
 
 @app.get("/api/analyses/{analysis_id}/export")
