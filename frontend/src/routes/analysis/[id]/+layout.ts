@@ -13,6 +13,10 @@ export const load: LayoutLoad = async ({ params, fetch, depends }) => {
 		}
 		throw e;
 	}
-	const points = analysis.status === 'done' ? await api.getCorpus(params.id, fetch) : [];
-	return { analysis, points };
+	if (analysis.status !== 'done') return { analysis, articles: [], clusters: [] };
+	const [articles, clusters] = await Promise.all([
+		api.listArticles(params.id, fetch),
+		api.getClusters(params.id, fetch)
+	]);
+	return { analysis, articles, clusters };
 };

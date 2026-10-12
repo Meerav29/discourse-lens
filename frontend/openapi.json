@@ -289,10 +289,11 @@
         }
       }
     },
-    "/api/analyses/{analysis_id}/corpus": {
+    "/api/analyses/{analysis_id}/articles": {
       "get": {
-        "summary": "Get Corpus",
-        "operationId": "get_corpus",
+        "summary": "List Articles",
+        "description": "Every article on the map, with its position, topic and outlier score.",
+        "operationId": "list_articles",
         "parameters": [
           {
             "name": "analysis_id",
@@ -312,9 +313,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/CorpusPoint"
+                    "$ref": "#/components/schemas/MapArticle"
                   },
-                  "title": "Response Get Corpus"
+                  "title": "Response List Articles"
                 }
               }
             }
@@ -335,6 +336,7 @@
     "/api/analyses/{analysis_id}/clusters": {
       "get": {
         "summary": "Get Clusters",
+        "description": "Topics, largest first, with their key terms. Unclustered articles have none.",
         "operationId": "get_clusters",
         "parameters": [
           {
@@ -358,65 +360,6 @@
                     "$ref": "#/components/schemas/Cluster"
                   },
                   "title": "Response Get Clusters"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/analyses/{analysis_id}/outliers": {
-      "get": {
-        "summary": "Get Outliers",
-        "operationId": "get_outliers",
-        "parameters": [
-          {
-            "name": "analysis_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Analysis Id"
-            }
-          },
-          {
-            "name": "cluster_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Cluster Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Outlier"
-                  },
-                  "title": "Response Get Outliers"
                 }
               }
             }
@@ -901,7 +844,11 @@
             "type": "integer",
             "title": "Cluster Id"
           },
-          "cluster_label": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
             "anyOf": [
               {
                 "type": "string"
@@ -910,41 +857,48 @@
                 "type": "null"
               }
             ],
-            "title": "Cluster Label"
+            "title": "Description"
           },
           "article_count": {
             "type": "integer",
             "title": "Article Count"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/Term"
+            },
+            "type": "array",
+            "title": "Terms"
           }
         },
         "type": "object",
         "required": [
           "cluster_id",
-          "cluster_label",
-          "article_count"
+          "label",
+          "description",
+          "article_count",
+          "terms"
         ],
         "title": "Cluster"
       },
-      "CorpusPoint": {
+      "HTTPValidationError": {
         "properties": {
-          "chunk_id": {
-            "type": "string",
-            "title": "Chunk Id"
-          },
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MapArticle": {
+        "properties": {
           "article_id": {
             "type": "string",
             "title": "Article Id"
-          },
-          "child_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Child Text"
           },
           "url": {
             "type": "string",
@@ -983,6 +937,17 @@
             ],
             "title": "Publish Date"
           },
+          "word_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Word Count"
+          },
           "x": {
             "type": "number",
             "title": "X"
@@ -995,139 +960,44 @@
             "type": "integer",
             "title": "Cluster Id"
           },
-          "cluster_label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cluster Label"
-          },
-          "distance_from_centroid": {
+          "distance": {
             "type": "number",
-            "title": "Distance From Centroid"
-          },
-          "word_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Word Count"
+            "title": "Distance"
           }
         },
         "type": "object",
         "required": [
-          "chunk_id",
           "article_id",
-          "child_text",
           "url",
           "title",
           "domain",
           "publish_date",
+          "word_count",
           "x",
           "y",
           "cluster_id",
-          "cluster_label",
-          "distance_from_centroid",
-          "word_count"
+          "distance"
         ],
-        "title": "CorpusPoint"
+        "title": "MapArticle",
+        "description": "An article as placed on the map."
       },
-      "HTTPValidationError": {
+      "Term": {
         "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
-      "Outlier": {
-        "properties": {
-          "chunk_id": {
+          "term": {
             "type": "string",
-            "title": "Chunk Id"
+            "title": "Term"
           },
-          "cluster_id": {
-            "type": "integer",
-            "title": "Cluster Id"
-          },
-          "cluster_label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cluster Label"
-          },
-          "distance_from_centroid": {
+          "weight": {
             "type": "number",
-            "title": "Distance From Centroid"
-          },
-          "article_id": {
-            "type": "string",
-            "title": "Article Id"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "domain": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Domain"
-          },
-          "publish_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Publish Date"
+            "title": "Weight"
           }
         },
         "type": "object",
         "required": [
-          "chunk_id",
-          "cluster_id",
-          "cluster_label",
-          "distance_from_centroid",
-          "article_id",
-          "title",
-          "domain",
-          "publish_date"
+          "term",
+          "weight"
         ],
-        "title": "Outlier"
+        "title": "Term"
       },
       "ValidationError": {
         "properties": {

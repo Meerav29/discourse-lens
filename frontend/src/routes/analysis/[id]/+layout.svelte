@@ -16,7 +16,7 @@
 
 	let { data, children }: LayoutProps = $props();
 
-	const ws = $derived(new Workspace(data.analysis, data.points));
+	const ws = $derived(new Workspace(data.analysis, data.articles, data.clusters));
 	setWorkspace(() => ws);
 
 	const VIEWS: { view: View; slug: string; label: string }[] = [

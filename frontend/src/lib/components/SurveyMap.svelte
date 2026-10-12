@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as d3 from 'd3';
-	import type { ArticlePoint } from '#lib/corpus.ts';
+	import { UNCLUSTERED, type ArticlePoint } from '#lib/corpus.ts';
 	import { formatPublishDate } from '#lib/format.ts';
 	import { useWorkspace } from '#lib/workspace.svelte.ts';
 	import Minus from '@lucide/svelte/icons/minus';
@@ -16,12 +16,13 @@
 	let transform = $state(d3.zoomIdentity);
 	let zoom: d3.ZoomBehavior<SVGSVGElement, unknown> | undefined;
 
-	const PAD = 48;
+	// Room for density contours, which spread about two bandwidths past the outermost articles.
+	const PAD = 80;
 
 	// One scale for both axes so UMAP distances aren't stretched.
 	const base = $derived.by(() => {
-		const xs = ws.points.map((p) => p.x);
-		const ys = ws.points.map((p) => p.y);
+		const xs = ws.articles.map((a) => a.x);
+		const ys = ws.articles.map((a) => a.y);
 		const [x0, x1] = d3.extent(xs) as [number, number];
 		const [y0, y1] = d3.extent(ys) as [number, number];
 		const k = Math.min((width - 2 * PAD) / (x1 - x0 || 1), (height - 2 * PAD) / (y1 - y0 || 1));
@@ -33,14 +34,15 @@
 		};
 	});
 
-	// Density contours per cluster, from chunk positions (denser than articles).
+	// Density contours per topic, from its articles' positions.
 	const contours = $derived.by(() => {
 		if (!width || !height) return [];
-		const bandwidth = Math.max(10, Math.min(width, height) * 0.03);
+		const bandwidth = Math.max(14, Math.min(width, height) * 0.055);
 		const path = d3.geoPath();
 		return ws.clusters.flatMap((c) => {
-			const pts = ws.points.filter((p) => p.cluster_id === c.id);
-			if (pts.length < 4) return [];
+			if (c.id === UNCLUSTERED) return [];
+			const pts = ws.articles.filter((a) => a.clusterId === c.id);
+			if (pts.length < 3) return [];
 			const levels = d3
 				.contourDensity<(typeof pts)[number]>()
 				.x((p) => base.x(p.x))
@@ -69,6 +71,7 @@
 	const labels = $derived.by(() => {
 		const placed: { id: number; text: string; x: number; y: number; w: number }[] = [];
 		const items = ws.clusters
+			.filter((c) => c.id !== UNCLUSTERED) // scattered by definition: no centre to label
 			.map((c) => {
 				const members = ws.articles.filter((a) => a.clusterId === c.id);
 				return {

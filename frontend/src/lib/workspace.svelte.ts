@@ -2,11 +2,11 @@ import { getContext, setContext } from 'svelte';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { page } from '$app/state';
-import type { Analysis, CorpusPoint } from '#lib/api.ts';
+import type { Analysis, Cluster, MapArticle } from '#lib/api.ts';
 import {
-	aggregateArticles,
 	clusterColor,
 	summarizeClusters,
+	toArticlePoints,
 	type ArticlePoint,
 	type ClusterInfo
 } from '#lib/corpus.ts';
@@ -34,10 +34,11 @@ export class Workspace {
 
 	constructor(
 		readonly analysis: Analysis,
-		readonly points: CorpusPoint[]
+		mapArticles: MapArticle[],
+		apiClusters: Cluster[]
 	) {
-		this.articles = aggregateArticles(points);
-		this.clusters = summarizeClusters(this.articles);
+		this.clusters = summarizeClusters(apiClusters, mapArticles);
+		this.articles = toArticlePoints(mapArticles, this.clusters);
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- built once per Workspace, never mutated
 		this.#byId = new Map(this.clusters.map((c) => [c.id, c]));
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- built once per Workspace, never mutated

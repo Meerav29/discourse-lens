@@ -1,33 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import type { CorpusPoint } from '#lib/api.ts';
+import type { Cluster, MapArticle } from '#lib/api.ts';
 import {
-	aggregateArticles,
 	buildTimeline,
-	distinctiveTerms,
 	MAX_HUES,
 	parseYearMonth,
 	summarizeClusters,
-	tokenize,
+	toArticlePoints,
+	UNCLUSTERED,
 	type ArticlePoint
 } from './corpus';
 
-function point(over: Partial<CorpusPoint>): CorpusPoint {
+function mapArticle(over: Partial<MapArticle>): MapArticle {
 	return {
-		chunk_id: 'c',
 		article_id: 'a',
-		child_text: '',
 		url: 'https://x.test/a',
 		title: 'A',
 		domain: 'x.test',
 		publish_date: null,
+		word_count: 500,
 		x: 0,
 		y: 0,
 		cluster_id: 0,
-		cluster_label: 'Zero',
-		distance_from_centroid: 0,
-		word_count: 500,
+		distance: 0.1,
 		...over
 	};
+}
+
+function cluster(id: number, size: number, label = `Topic ${id}`): Cluster {
+	return { cluster_id: id, label, description: null, article_count: size, terms: [] };
 }
 
 function article(over: Partial<ArticlePoint>): ArticlePoint {
@@ -42,59 +42,54 @@ function article(over: Partial<ArticlePoint>): ArticlePoint {
 		clusterLabel: 'Zero',
 		x: 0,
 		y: 0,
-		chunks: 1,
 		distance: 0,
 		...over
 	};
 }
 
-describe('aggregateArticles', () => {
-	it('uses the majority cluster and averages only its chunks', () => {
-		const [a] = aggregateArticles([
-			point({
-				chunk_id: '1',
-				cluster_id: 1,
-				cluster_label: 'One',
-				x: 2,
-				y: 2,
-				distance_from_centroid: 0.4
-			}),
-			point({
-				chunk_id: '2',
-				cluster_id: 1,
-				cluster_label: 'One',
-				x: 4,
-				y: 6,
-				distance_from_centroid: 0.7
-			}),
-			point({ chunk_id: '3', cluster_id: 0, x: 100, y: 100, distance_from_centroid: 9 })
+describe('summarizeClusters', () => {
+	it('orders topics by size, gives each a hue, and puts unclustered last in grey', () => {
+		const clusters = summarizeClusters(
+			[cluster(1, 3), cluster(0, 9)],
+			[mapArticle({ cluster_id: 0 }), mapArticle({ article_id: 'b', cluster_id: UNCLUSTERED })]
+		);
+		expect(clusters.map((c) => [c.id, c.slot])).toEqual([
+			[0, 1],
+			[1, 2],
+			[UNCLUSTERED, null]
 		]);
-		expect(a.clusterId).toBe(1);
-		expect(a.clusterLabel).toBe('One');
-		expect([a.x, a.y]).toEqual([3, 4]);
-		expect(a.chunks).toBe(3);
-		// outlier score only counts chunks in the article's own cluster
-		expect(a.distance).toBe(0.7);
+		expect(clusters.at(-1)).toMatchObject({ label: 'Unclustered', articles: 1 });
 	});
 
-	it('breaks ties toward the lower cluster id', () => {
-		const [a] = aggregateArticles([
-			point({ chunk_id: '1', cluster_id: 2 }),
-			point({ chunk_id: '2', cluster_id: 1 })
-		]);
-		expect(a.clusterId).toBe(1);
+	it('omits unclustered when every article has a topic', () => {
+		expect(summarizeClusters([cluster(0, 1)], [mapArticle({})]).map((c) => c.id)).toEqual([0]);
+	});
+
+	it('folds topics past the palette into grey', () => {
+		const many = Array.from({ length: MAX_HUES + 1 }, (_, i) => cluster(i, 20 - i));
+		expect(summarizeClusters(many, []).at(-1)!.slot).toBeNull();
 	});
 });
 
-describe('summarizeClusters', () => {
-	it('gives hues to the largest clusters and folds the rest', () => {
-		const articles: ArticlePoint[] = [];
-		for (let c = 0; c < MAX_HUES + 2; c++) {
-			for (let i = 0; i <= c; i++) articles.push(article({ id: `${c}-${i}`, clusterId: c }));
-		}
-		const clusters = summarizeClusters(articles);
-		expect(clusters[0]).toMatchObject({ id: MAX_HUES + 1, slot: 1 });
-		expect(clusters.filter((c) => c.slot === null).map((c) => c.id)).toEqual([1, 0]);
+describe('toArticlePoints', () => {
+	it("maps API fields and names each article's topic", () => {
+		const clusters = summarizeClusters([cluster(0, 1, 'Cool roofs')], []);
+		const [a, b] = toArticlePoints(
+			[
+				mapArticle({ title: null, domain: 'roofs.test', x: 2, y: 3, distance: 0.4 }),
+				mapArticle({ article_id: 'b', cluster_id: UNCLUSTERED })
+			],
+			clusters
+		);
+		expect(a).toMatchObject({
+			id: 'a',
+			title: 'roofs.test',
+			clusterLabel: 'Cool roofs',
+			x: 2,
+			y: 3,
+			distance: 0.4
+		});
+		expect(b.clusterLabel).toBe('Unclustered');
 	});
 });
 
@@ -140,38 +135,5 @@ describe('buildTimeline', () => {
 
 	it('handles a corpus with no dates', () => {
 		expect(buildTimeline([article({})], [0])).toMatchObject({ bins: [], dated: 0, undated: 1 });
-	});
-});
-
-describe('distinctiveTerms', () => {
-	it('ranks words specific to a cluster above shared ones', () => {
-		const pts: CorpusPoint[] = [];
-		for (let i = 0; i < 4; i++) {
-			pts.push(point({ cluster_id: 0, child_text: 'rebound effect energy demand' }));
-			pts.push(point({ cluster_id: 1, child_text: 'carbon pricing energy policy' }));
-		}
-		const terms = distinctiveTerms(pts);
-		const zero = terms.get(0)!.map((t) => t.term);
-		expect(zero).toContain('rebound');
-		expect(zero).not.toContain('energy'); // in every chunk → idf 0
-		expect(terms.get(0)![0].share).toBe(1);
-	});
-});
-
-describe('tokenize', () => {
-	it('ignores URLs', () => {
-		expect(tokenize('see https://example.com/heat-study and www.city.gov/plan today')).toEqual([
-			'today'
-		]);
-	});
-
-	it('drops stop words, short words, numbers and possessives', () => {
-		expect(tokenize("Jevons's paradox: efficiency would raise 2024 demand")).toEqual([
-			'jevons',
-			'paradox',
-			'efficiency',
-			'raise',
-			'demand'
-		]);
 	});
 });

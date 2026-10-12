@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { clusterColor, MAX_HUES } from '#lib/corpus.ts';
+	import { clusterColor, MAX_HUES, UNCLUSTERED } from '#lib/corpus.ts';
 	import { useWorkspace } from '#lib/workspace.svelte.ts';
 
 	const ws = $derived(useWorkspace());
 	const selected = $derived(ws.selectedCluster);
-	const folded = $derived(ws.clusters.some((c) => c.slot === null));
+	// Unclustered is grey by design; only real topics past the 8th are "folded".
+	const folded = $derived(ws.clusters.some((c) => c.slot === null && c.id !== UNCLUSTERED));
+	const selectedInfo = $derived(selected == null ? undefined : ws.cluster(selected));
 </script>
 
 <div class="p-4 sm:px-6 lg:px-5 lg:py-5">
@@ -28,6 +30,7 @@
 				<button
 					type="button"
 					aria-pressed={selected === c.id}
+					title={c.description ?? undefined}
 					onclick={() => ws.selectCluster(c.id)}
 					class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-[background-color,opacity] hover:bg-rule-soft
 						{selected === c.id ? 'bg-rule-soft' : ''}
@@ -50,6 +53,12 @@
 			</li>
 		{/each}
 	</ul>
+
+	{#if selectedInfo?.description}
+		<p class="mt-3 border-l-2 border-rule pl-3 text-sm text-ink-2" aria-live="polite">
+			{selectedInfo.description}
+		</p>
+	{/if}
 
 	{#if folded}
 		<p class="mt-3 text-xs leading-relaxed text-muted">

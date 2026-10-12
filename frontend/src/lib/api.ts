@@ -13,7 +13,9 @@ export type {
 	Article,
 	ChatResponse,
 	Citation,
-	CorpusPoint
+	Cluster,
+	MapArticle,
+	Term
 } from './api/gen/types.gen';
 
 // Same origin in production (FastAPI serves the app); Vite proxies /api in dev.
@@ -68,7 +70,8 @@ export const api = {
 	getAnalysis: (id: string, fetch?: Fetch) => unwrap(sdk.getAnalysis({ ...path(id), fetch })),
 	deleteAnalysis: (id: string) => unwrap(sdk.deleteAnalysis(path(id))),
 	cancelAnalysis: (id: string) => unwrap(sdk.cancelAnalysis(path(id))),
-	getCorpus: (id: string, fetch?: Fetch) => unwrap(sdk.getCorpus({ ...path(id), fetch })),
+	listArticles: (id: string, fetch?: Fetch) => unwrap(sdk.listArticles({ ...path(id), fetch })),
+	getClusters: (id: string, fetch?: Fetch) => unwrap(sdk.getClusters({ ...path(id), fetch })),
 	getArticle: (id: string, articleId: string) =>
 		unwrap(sdk.getArticle({ path: { analysis_id: id, article_id: articleId } })),
 	chat: (id: string, query: string) => unwrap(sdk.chat({ ...path(id), body: { query } }))
