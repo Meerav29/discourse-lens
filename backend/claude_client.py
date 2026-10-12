@@ -53,6 +53,7 @@ def complete(
     system: str | None = None,
     max_tokens: int = 16000,
     effort: Effort = "medium",
+    json_schema: dict | None = None,
 ) -> str:
     """
     Single-turn request; returns the concatenated text blocks.
@@ -60,12 +61,18 @@ def complete(
     Current models think by default, so content[0] may be a thinking block —
     always collect the text blocks. On the Anthropic API, server-side fallback
     re-runs a refused request on a suitable model within the same call.
+
+    With json_schema, the response is constrained to JSON matching it
+    (structured outputs); parse the returned text with json.loads.
     """
+    output_config: dict = {"effort": effort}
+    if json_schema is not None:
+        output_config["format"] = {"type": "json_schema", "schema": json_schema}
     kwargs = dict(
         model=get_model(),
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
-        output_config={"effort": effort},
+        output_config=output_config,
     )
     if system:
         kwargs["system"] = system

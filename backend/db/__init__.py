@@ -18,8 +18,16 @@ from backend.config import settings
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 _SCHEMA = Path(__file__).parent / "schema.sql"
+
+# Chunk-level map rows used by schema v2/v3, before placements + clusters.
+_LEGACY_PROJECTIONS = """
+CREATE TABLE IF NOT EXISTS projections (
+  chunk_id TEXT PRIMARY KEY, analysis_id TEXT NOT NULL, x REAL, y REAL,
+  cluster_id INTEGER, cluster_label TEXT, distance_from_centroid REAL
+)
+"""
 
 # Analyses still in one of these states are being worked on by a pipeline.
 RUNNING_STATUSES = ("queued", "crawling", "processing", "embedding", "projecting")
@@ -45,8 +53,11 @@ def init_db(db_path: str | None = None) -> None:
             _migrate_v1_to_v2(path)
             conn = connect(path)
         # v2 -> v3: new events table (created by the schema script) + stage_detail.
+        # v3 -> v4: clusters + placements tables (schema script), projections converted.
         conn.executescript(_SCHEMA.read_text())
         _ensure_column(conn, "analyses", "stage_detail", "TEXT")
+        if _table_exists(conn, "projections"):
+            _migrate_projections(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         placeholders = ",".join("?" for _ in RUNNING_STATUSES)
         conn.execute(
@@ -67,6 +78,54 @@ def _schema_statements() -> list[str]:
     """
     lines = [line.split("--", 1)[0] for line in _SCHEMA.read_text().splitlines()]
     return [s.strip() for s in "\n".join(lines).split(";") if s.strip()]
+
+
+def _migrate_projections(conn: sqlite3.Connection) -> None:
+    """
+    v3 -> v4: chunk-level projections become article placements plus a
+    clusters table. Each article takes the cluster most of its chunks were in
+    (ties: lower id), sits at the mean of those chunks, and keeps their largest
+    distance. Key terms and descriptions are empty until the analysis is
+    re-clustered (scripts/recluster.py).
+    """
+    rows = conn.execute(
+        "SELECT p.analysis_id, c.article_id, p.x, p.y, p.cluster_id, p.cluster_label, "
+        "p.distance_from_centroid AS distance "
+        "FROM projections p JOIN chunks c ON c.id = p.chunk_id"
+    ).fetchall()
+    by_article: dict[str, list[sqlite3.Row]] = {}
+    for r in rows:
+        by_article.setdefault(r["article_id"], []).append(r)
+
+    placements, labels, sizes = [], {}, {}
+    for article_id, chunks in by_article.items():
+        votes: dict[int, int] = {}
+        for c in chunks:
+            votes[c["cluster_id"]] = votes.get(c["cluster_id"], 0) + 1
+        cluster = min(votes, key=lambda k: (-votes[k], k))
+        mine = [c for c in chunks if c["cluster_id"] == cluster]
+        analysis_id = mine[0]["analysis_id"]
+        placements.append((
+            article_id, analysis_id,
+            sum(c["x"] for c in mine) / len(mine), sum(c["y"] for c in mine) / len(mine),
+            cluster, max(c["distance"] for c in mine),
+        ))
+        key = (analysis_id, cluster)
+        labels.setdefault(key, mine[0]["cluster_label"] or f"Cluster {cluster + 1}")
+        sizes[key] = sizes.get(key, 0) + 1
+
+    conn.executemany(
+        "INSERT OR REPLACE INTO placements (article_id, analysis_id, x, y, cluster_id, distance) "
+        "VALUES (?,?,?,?,?,?)",
+        placements,
+    )
+    conn.executemany(
+        "INSERT OR REPLACE INTO clusters (analysis_id, cluster_id, label, article_count) "
+        "VALUES (?,?,?,?)",
+        [(a, c, labels[(a, c)], n) for (a, c), n in sizes.items()],
+    )
+    conn.execute("DROP TABLE projections")
+    log.info("Converted %d articles' map positions to placements", len(placements))
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
@@ -128,6 +187,8 @@ def _migrate_v1_to_v2(path: str) -> None:
             conn.execute(f"ALTER TABLE {table} RENAME TO {table}_v1")
         for statement in _schema_statements():
             conn.execute(statement)
+        # v2/v3 kept chunk-level map rows; the v3 -> v4 step converts them.
+        conn.execute(_LEGACY_PROJECTIONS)
 
         if analysis_id:
             conn.execute(

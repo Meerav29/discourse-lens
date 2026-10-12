@@ -8,14 +8,15 @@ import asyncio
 import time
 
 import pytest
-from conftest import add_analysis
+from conftest import add_analysis, prose
 
 from backend import pipeline
 from backend.db import connect
 from backend.embedding import store
 from backend.ingestion.extractor import SkipArticle
 
-WORDS = "rebound effects mean efficiency gains can raise total energy demand over time "
+TEXTS = {"1": prose(1), "2": prose(2)}
+TEXTS["copy"] = "Syndicated from the wire. " + TEXTS["1"]  # near-copy of article 1
 
 
 @pytest.fixture
@@ -27,7 +28,7 @@ def fakes(isolated, monkeypatch):
         if on_query:
             on_query(1, 2, "query one", 3)
             on_query(2, 2, "query two", None)
-        return ["https://a.test/1", "https://a.test/2", "https://a.test/short"]
+        return ["https://a.test/1", "https://a.test/2", "https://a.test/copy", "https://a.test/short"]
 
     def crawl_urls(urls, on_page=None, should_stop=None):
         if state["crawl_hook"]:
@@ -47,7 +48,7 @@ def fakes(isolated, monkeypatch):
         n = url.rsplit("/", 1)[1]
         return {
             "id": f"{analysis_id[:4]}-{n}", "url": url, "domain": "a.test",
-            "title": f"Article {n}", "raw_text": (WORDS + n + " ") * 60,
+            "title": f"Article {n}", "raw_text": TEXTS[n],
             "word_count": 840, "language": "en", "crawl_ts": 0, "status": "ok",
         }
 
@@ -62,16 +63,22 @@ def fakes(isolated, monkeypatch):
     def run_projection(analysis_id, on_step=None, on_label=None):
         on_step(0.0, "Projecting")
         conn = connect()
-        ids = [r[0] for r in conn.execute(
-            "SELECT id FROM chunks WHERE analysis_id=? AND is_duplicate=0", (analysis_id,))]
+        articles = [r[0] for r in conn.execute(
+            "SELECT DISTINCT article_id FROM chunks WHERE analysis_id=? AND is_duplicate=0",
+            (analysis_id,),
+        )]
         conn.executemany(
-            "INSERT INTO projections (chunk_id, analysis_id, x, y, cluster_id, cluster_label, "
-            "distance_from_centroid) VALUES (?,?,0,0,0,'Rebound',1)",
-            [(i, analysis_id) for i in ids],
+            "INSERT INTO placements (article_id, analysis_id, x, y, cluster_id, distance) "
+            "VALUES (?,?,0,0,0,0.1)",
+            [(a, analysis_id) for a in articles],
+        )
+        conn.execute(
+            "INSERT INTO clusters (analysis_id, cluster_id, label, article_count) VALUES (?,0,'Rebound',?)",
+            (analysis_id, len(articles)),
         )
         conn.commit()
         conn.close()
-        on_label("Rebound", len(ids))
+        on_label("Rebound", len(articles))
 
     monkeypatch.setattr("backend.ingestion.search.collect_urls", collect_urls)
     monkeypatch.setattr("backend.ingestion.crawler.crawl_urls", crawl_urls)
@@ -121,6 +128,12 @@ def test_happy_path_records_progress_and_events(fakes):
     assert {"stage", "query", "article", "skip", "cluster", "warning"} <= kinds
     assert {"kind": "skip", "message": "Too short (12 words)",
             "url": "https://a.test/short"} in events
+    assert {"kind": "skip", "message": "Near-copy of “Article 1”",
+            "url": "https://a.test/copy"} in events
+    conn = connect()
+    status = conn.execute("SELECT status FROM articles WHERE url='https://a.test/copy'").fetchone()[0]
+    conn.close()
+    assert status == "duplicate"
     assert any(e["kind"] == "warning" and "query two" in e["message"] for e in events)
     assert store.open_table("an1") is not None
 
@@ -138,7 +151,7 @@ def test_cancel_during_crawl_discards_data(fakes):
     async def scenario():
         pipeline.start("an1", "jevons")
         task, _ctx = pipeline._runs["an1"]
-        while _analysis("an1")["stage_detail"] != "Crawling 3 pages":
+        while _analysis("an1")["stage_detail"] != "Crawling 4 pages":
             await asyncio.sleep(0.01)
         assert pipeline.cancel("an1") is True
         await task
@@ -160,7 +173,7 @@ def test_cancel_inside_worker_thread_propagates(fakes):
     asyncio.run(pipeline.run_pipeline(ctx, "jevons"))
 
     assert _analysis("an1")["status"] == "cancelled"
-    for table in ("articles", "chunks", "projections"):
+    for table in ("articles", "chunks", "placements", "clusters"):
         assert _count(table, "an1") == 0, table
     assert store.open_table("an1") is None
 

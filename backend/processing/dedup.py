@@ -58,6 +58,40 @@ def mark_duplicates(chunks: list[dict]) -> list[dict]:
     return chunks
 
 
+ARTICLE_THRESHOLD = 0.8
+
+
+def _word_shingles(text: str, k: int = 3) -> set[bytes]:
+    words = re.sub(r"\s+", " ", text.lower()).split(" ")
+    return {" ".join(words[i : i + k]).encode("utf-8") for i in range(max(1, len(words) - k + 1))}
+
+
+def find_duplicate_articles(
+    articles: list[dict], threshold: float = ARTICLE_THRESHOLD
+) -> dict[str, str]:
+    """
+    Whole-article near-duplicates (dicts with 'id' and 'raw_text'), e.g. one
+    wire story syndicated across sites with different intros or footers —
+    chunk dedup misses these because shifted text misaligns every chunk.
+    Returns {duplicate_id: id_of_the_earlier_article_it_copies}.
+    """
+    lsh = MinHashLSH(threshold=threshold, num_perm=NUM_PERM)
+    duplicates: dict[str, str] = {}
+    for art in articles:
+        text = art.get("raw_text") or ""
+        if len(text.split()) < 20:
+            continue
+        m = MinHash(num_perm=NUM_PERM)
+        for shingle in _word_shingles(text):
+            m.update(shingle)
+        match = lsh.query(m)
+        if match:
+            duplicates[art["id"]] = match[0]
+        else:
+            lsh.insert(art["id"], m)
+    return duplicates
+
+
 def chunk_and_dedup(articles: list[dict]) -> list[dict]:
     """
     Chunk every article (dicts with 'id' and 'raw_text'), then dedup across the

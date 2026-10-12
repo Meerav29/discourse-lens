@@ -1,4 +1,4 @@
-"""v1 (single global corpus + jobs table) → v2 (analyses)."""
+"""Schema migrations: v1 (one corpus + jobs) → v2 (analyses) → … → v4 (placements, clusters)."""
 
 import sqlite3
 
@@ -65,13 +65,18 @@ def test_corpus_becomes_latest_finished_job(tmp_path, monkeypatch):
     assert analyses[0]["id"] == "job-1"
     assert analyses[0]["topic"] == "jevons paradox"
     assert analyses[0]["warning"] == "sparse"
-    for table in ("articles", "chunks", "projections"):
+    for table in ("articles", "chunks", "placements", "clusters"):
         ids = {r[0] for r in conn.execute(f"SELECT analysis_id FROM {table}")}
         assert ids == {"job-1"}, table
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+    placement = dict(conn.execute("SELECT * FROM placements").fetchone())
+    assert placement | {"analysis_id": None} == {
+        "article_id": "a1", "analysis_id": None, "x": 1.0, "y": 2.0, "cluster_id": 0, "distance": 0.5,
+    }
+    assert conn.execute("SELECT label FROM clusters").fetchone()[0] == "Label"
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()
-    assert "jobs" not in tables and "articles_v1" not in tables
+    assert not tables & {"jobs", "articles_v1", "projections"}
 
     rows = store.read_all_embeddings("job-1")
     assert [r["chunk_id"] for r in rows] == ["a1#p0c0"]
@@ -107,3 +112,47 @@ def test_v1_without_warning_column(tmp_path, monkeypatch):
     row = conn.execute("SELECT id, warning FROM analyses").fetchone()
     conn.close()
     assert (row["id"], row["warning"]) == ("job-1", None)
+
+
+def test_v3_projections_become_article_placements(tmp_path, monkeypatch):
+    """Each article takes its majority cluster and the mean position of those chunks."""
+    monkeypatch.setattr(settings, "db_path", str(tmp_path / "v3.db"))
+    monkeypatch.setattr(settings, "lance_path", str(tmp_path / "vectors"))
+    init_db()
+    conn = connect()
+    conn.execute(
+        "INSERT INTO analyses (id, topic, status, created_ts, updated_ts) "
+        "VALUES ('an', 't', 'done', 1, 1)"
+    )
+    conn.execute("INSERT INTO articles (id, analysis_id, url) VALUES ('a', 'an', 'u')")
+    conn.executemany(
+        "INSERT INTO chunks (id, analysis_id, article_id) VALUES (?, 'an', 'a')",
+        [("a#0",), ("a#1",), ("a#2",)],
+    )
+    conn.execute(
+        "CREATE TABLE projections (chunk_id TEXT PRIMARY KEY, analysis_id TEXT, x REAL, y REAL, "
+        "cluster_id INTEGER, cluster_label TEXT, distance_from_centroid REAL)"
+    )
+    conn.executemany(
+        "INSERT INTO projections VALUES (?, 'an', ?, ?, ?, ?, ?)",
+        [
+            ("a#0", 2.0, 2.0, 1, "One", 0.4),
+            ("a#1", 4.0, 6.0, 1, "One", 0.7),
+            ("a#2", 99.0, 99.0, 0, "Zero", 9.0),
+        ],
+    )
+    conn.execute("PRAGMA user_version = 3")
+    conn.commit()
+    conn.close()
+
+    init_db()
+    conn = connect()
+    p = dict(conn.execute("SELECT x, y, cluster_id, distance FROM placements").fetchone())
+    clusters = [tuple(r) for r in conn.execute("SELECT cluster_id, label, article_count FROM clusters")]
+    has_projections = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE name='projections'"
+    ).fetchone()
+    conn.close()
+    assert p == {"x": 3.0, "y": 4.0, "cluster_id": 1, "distance": 0.7}
+    assert clusters == [(1, "One", 1)]
+    assert has_projections is None

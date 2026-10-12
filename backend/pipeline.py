@@ -232,14 +232,38 @@ def _extract_and_store(ctx: RunContext, crawled: list[dict]) -> list[dict]:
                 ),
             )
             conn.commit()
-            ok_articles.append({"id": article["id"], "raw_text": article["raw_text"]})
+            ok_articles.append({
+                "id": article["id"], "url": url, "raw_text": article["raw_text"],
+                "title": article["title"] or article["domain"],
+            })
             ctx.event("article", article["title"] or article["domain"], url)
             ctx.progress(EXTRACT, i / len(crawled), f"Extracted {i} of {len(crawled)} pages")
     finally:
         conn.close()
     if not ok_articles:
         raise RuntimeError("No pages passed the quality filters — try a broader topic.")
-    return ok_articles
+    return _drop_duplicate_articles(ctx, ok_articles)
+
+
+def _drop_duplicate_articles(ctx: RunContext, articles: list[dict]) -> list[dict]:
+    """Mark near-copies of an earlier article (e.g. syndicated stories) and drop them."""
+    from backend.processing.dedup import find_duplicate_articles
+
+    duplicates = find_duplicate_articles(articles)
+    if not duplicates:
+        return articles
+    by_id = {a["id"]: a for a in articles}
+    conn = connect()
+    try:
+        conn.executemany(
+            "UPDATE articles SET status = 'duplicate' WHERE id = ?", [(d,) for d in duplicates]
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    for dup, original in duplicates.items():
+        ctx.event("skip", f"Near-copy of “{by_id[original]['title']}”", by_id[dup]["url"])
+    return [a for a in articles if a["id"] not in duplicates]
 
 
 def _chunk_and_store(ctx: RunContext, articles: list[dict]) -> None:
@@ -316,8 +340,8 @@ def _project(ctx: RunContext) -> None:
         ctx.check()
         ctx.progress(PROJECT, fraction, detail)
 
-    def on_label(label: str, n_chunks: int) -> None:
-        ctx.event("cluster", f"{label} ({n_chunks} chunks)")
+    def on_label(label: str, n_articles: int) -> None:
+        ctx.event("cluster", f"{label} ({n_articles} articles)")
 
     run_projection(ctx.analysis_id, on_step=on_step, on_label=on_label)
 
@@ -327,7 +351,7 @@ def _discard_partial_data(analysis_id: str) -> None:
 
     conn = connect()
     try:
-        for table in ("projections", "chunks", "articles"):
+        for table in ("placements", "clusters", "chunks", "articles"):
             conn.execute(f"DELETE FROM {table} WHERE analysis_id = ?", (analysis_id,))
         conn.commit()
     finally:

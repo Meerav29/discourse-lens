@@ -83,6 +83,8 @@ uv run python -m scripts.export_openapi
 cd frontend && npm run gen:api
 ```
 
+How maps are built: `backend/topics.py` (article vectors → UMAP → HDBSCAN → c-TF-IDF, BERTopic's recipe without PyTorch) and `backend/embedding/project.py` (naming topics with Claude).
+
 Checks: `uv run pytest`, `uv run ruff check backend tests`, and in `frontend/`: `npm run check`, `npx vitest run`, `npm run lint`.
 
 ---
@@ -92,12 +94,12 @@ Checks: `uv run pytest`, `uv run ruff check backend tests`, and in `frontend/`: 
 1. On the home page, type a topic (e.g. `mechanistic interpretability in large language models`) and choose **Map this topic**.
 2. A map takes **3–8 minutes**. You'll see each step as it happens: the search queries, pages crawled, articles kept or skipped (and why), and clusters as they're named. You can leave the page, or **Cancel this map**.
 3. When it's done you get five views of the same map:
-   - **Map**: articles that make similar arguments sit close together; contour lines outline each cluster. Switch to **Table** for a plain list.
+   - **Map**: articles that make similar arguments sit close together, grouped into topics (camps) with contour lines and a name for each. Switch to **Table** for a plain list.
    - **Timeline**: articles per month or year, by cluster.
    - **Outliers**: articles furthest from the middle of their cluster.
-   - **Key terms**: the words each cluster uses far more than the rest.
+   - **Key terms**: each topic's one-line summary and the words it uses far more than the others.
    - **Ask**: questions answered only from this map's articles, with sources.
-4. Pick a cluster in the **Clusters** panel to focus every view on it. Click any article to read it in a side panel. The address bar keeps the view, cluster and open article, so links and reloads land in the same place.
+4. Pick a topic in the **Clusters** panel to focus every view on it (and read its summary). Articles that don't fit any topic well are grouped as **Unclustered** rather than forced into one. Click any article to read it in a side panel. The address bar keeps the view, cluster and open article, so links and reloads land in the same place.
 5. **Export to Obsidian** downloads a vault: a Canvas of the map plus one note per article.
 6. Every map is kept. **All maps** returns to the list, where you can open or delete them.
 
@@ -126,4 +128,10 @@ Avoid topics that are too broad (`AI`, `climate change`) or too narrow (fewer th
 
 **Chat says "This analysis has no indexed corpus yet"** — The analysis hasn't completed, or no articles passed the quality filter. Try re-running with a different topic.
 
-**Upgrading from an older version** — On first start the backend migrates the old single-corpus database into one analysis. It copies `data/discourse.db` and `data/vectors/` to `*.v1.bak` first; delete those once you're happy.
+**Upgrading from an older version** — On first start the backend migrates the database. Maps made before topic modelling keep their old clusters, without key terms or summaries, until you rebuild them from the stored embeddings (no re-crawl; one Claude request per map):
+
+```bash
+uv run python -m scripts.recluster --all
+```
+
+The very first migration (from the single-corpus version) copies `data/discourse.db` and `data/vectors/` to `*.v1.bak`; delete those once you're happy.

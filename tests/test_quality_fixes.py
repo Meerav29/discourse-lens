@@ -1,9 +1,7 @@
 import pytest
-from conftest import add_analysis, add_chunk
+from conftest import prose
 
-from backend.api.main import fetch_outliers
 from backend.config import settings
-from backend.db import connect
 from backend.embedding import embed
 from backend.processing.dedup import chunk_and_dedup
 from backend.synthesis.rag import order_and_dedupe_by_article
@@ -79,34 +77,15 @@ def test_rag_keeps_best_ranked_chunk_per_article():
     assert [r["chunk_id"] for r in out] == ["a2#p0c1", "a1#p0c0"]
 
 
-# ── outliers ─────────────────────────────────────────────────────────────────
+# ── article-level dedup ──────────────────────────────────────────────────────
 
-@pytest.fixture
-def db(isolated):
-    add_analysis("an1")
-    add_chunk("an1", "a1", "a1#0", distance=9.0)
-    add_chunk("an1", "a1", "a1#1", distance=8.0)
-    add_chunk("an1", "a1", "a1#2", distance=7.0)
-    add_chunk("an1", "a2", "a2#0", distance=1.0)
-    add_chunk("an1", "a3", "a3#0", cluster_id=1, label="one", distance=5.0)
-    conn = connect()
-    yield conn
-    conn.close()
+def test_syndicated_copy_with_different_intro_is_a_duplicate():
+    from backend.processing.dedup import find_duplicate_articles
 
-
-def test_outliers_one_row_per_article(db):
-    rows = fetch_outliers(db, "an1")
-    assert [r["article_id"] for r in rows] == ["a1", "a3", "a2"]
-    assert rows[0]["chunk_id"] == "a1#0"
-    assert rows[0]["distance_from_centroid"] == 9.0
-
-
-def test_outliers_filtered_by_cluster(db):
-    rows = fetch_outliers(db, "an1", cluster_id=1)
-    assert [r["article_id"] for r in rows] == ["a3"]
-
-
-def test_outliers_scoped_to_analysis(db):
-    add_analysis("an2")
-    add_chunk("an2", "b1", "b1#0", distance=99.0)
-    assert "b1" not in [r["article_id"] for r in fetch_outliers(db, "an1")]
+    story = prose(1)
+    articles = [
+        {"id": "orig", "raw_text": story},
+        {"id": "copy", "raw_text": "Reprinted with permission from the Wire Service. " + story},
+        {"id": "other", "raw_text": prose(2)},
+    ]
+    assert find_duplicate_articles(articles) == {"copy": "orig"}

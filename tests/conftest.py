@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from backend.config import settings
@@ -24,21 +26,49 @@ def add_analysis(analysis_id, topic="topic", status="done"):
     conn.close()
 
 
-def add_chunk(analysis_id, article_id, chunk_id, cluster_id=0, distance=1.0, label="zero"):
-    """Insert an article (if new), one chunk and its projection."""
+def add_article(analysis_id, article_id, cluster_id=0, distance=0.1, x=0.0, y=0.0, chunks=1):
+    """Insert an article, `chunks` chunks of it, and its map placement."""
     conn = connect()
     conn.execute(
-        "INSERT OR IGNORE INTO articles (id, analysis_id, url, title, status) VALUES (?,?,?,?,?)",
+        "INSERT INTO articles (id, analysis_id, url, title, status) VALUES (?,?,?,?,?)",
         (article_id, analysis_id, f"https://example.com/{article_id}", article_id.upper(), "ok"),
     )
-    conn.execute(
+    conn.executemany(
         "INSERT INTO chunks (id, analysis_id, article_id, child_text) VALUES (?,?,?,?)",
-        (chunk_id, analysis_id, article_id, f"text of {chunk_id}"),
+        [(f"{article_id}#{i}", analysis_id, article_id, f"text {i}") for i in range(chunks)],
     )
     conn.execute(
-        "INSERT INTO projections (chunk_id, analysis_id, x, y, cluster_id, cluster_label, "
-        "distance_from_centroid) VALUES (?,?,?,?,?,?,?)",
-        (chunk_id, analysis_id, 0.0, 0.0, cluster_id, label, distance),
+        "INSERT INTO placements (article_id, analysis_id, x, y, cluster_id, distance) "
+        "VALUES (?,?,?,?,?,?)",
+        (article_id, analysis_id, x, y, cluster_id, distance),
     )
     conn.commit()
     conn.close()
+
+
+def add_cluster(analysis_id, cluster_id, label, article_count=1, terms=(), description=None):
+    conn = connect()
+    conn.execute(
+        "INSERT INTO clusters (analysis_id, cluster_id, label, description, article_count, terms) "
+        "VALUES (?,?,?,?,?,?)",
+        (analysis_id, cluster_id, label, description, article_count, json.dumps(list(terms))),
+    )
+    conn.commit()
+    conn.close()
+
+
+_VOCAB = (
+    "energy efficiency demand rebound policy price carbon household city heat roof tree "
+    "climate study report evidence cost growth consumption supply market tax standard data "
+    "model risk exposure equity income region urban rural building water power grid fuel "
+    "coal oil gas solar wind storage transport vehicle industry economy research analysis"
+).split()
+
+
+def prose(seed: int, words: int = 400) -> str:
+    """Varied, article-length filler text (repeating one sentence is unrealistic:
+    it has only a handful of distinct word sequences)."""
+    import random
+
+    rng = random.Random(seed)
+    return " ".join(rng.choice(_VOCAB) for _ in range(words)) + "."

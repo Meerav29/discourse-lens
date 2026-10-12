@@ -1,5 +1,5 @@
 import pytest
-from conftest import add_analysis, add_chunk
+from conftest import add_analysis, add_article, add_cluster
 from fastapi.testclient import TestClient
 
 from backend.api import main
@@ -35,27 +35,43 @@ def test_blank_topic_rejected(client):
 
 
 def test_unknown_analysis_is_404_with_string_detail(client):
-    r = client.get("/api/analyses/nope/corpus")
+    r = client.get("/api/analyses/nope/articles")
     assert r.status_code == 404
     assert r.json() == {"detail": "Analysis not found"}
 
 
-def test_corpus_is_scoped_to_analysis(client):
+def test_articles_are_scoped_to_analysis(client):
     add_analysis("an1")
     add_analysis("an2")
-    add_chunk("an1", "a1", "a1#0")
-    add_chunk("an2", "b1", "b1#0")
+    add_article("an1", "a1", x=1.5, y=-2.0, distance=0.3)
+    add_article("an2", "b1")
 
-    points = client.get("/api/analyses/an1/corpus").json()
-    assert [p["article_id"] for p in points] == ["a1"]
-    clusters = client.get("/api/analyses/an2/clusters").json()
-    assert clusters == [{"cluster_id": 0, "cluster_label": "zero", "article_count": 1}]
+    articles = client.get("/api/analyses/an1/articles").json()
+    assert [a["article_id"] for a in articles] == ["a1"]
+    assert articles[0] | {"url": None} == {
+        "article_id": "a1", "url": None, "title": "A1", "domain": None,
+        "publish_date": None, "word_count": None, "x": 1.5, "y": -2.0,
+        "cluster_id": 0, "distance": 0.3,
+    }
+
+
+def test_clusters_carry_terms_and_description(client):
+    add_analysis("an1")
+    add_cluster("an1", 1, "Heat equity", 4, [["gentrification", 0.12]], "Who bears the heat.")
+    add_cluster("an1", 0, "Cool roofs", 9)
+
+    clusters = client.get("/api/analyses/an1/clusters").json()
+    assert [c["label"] for c in clusters] == ["Cool roofs", "Heat equity"]
+    assert clusters[1] == {
+        "cluster_id": 1, "label": "Heat equity", "description": "Who bears the heat.",
+        "article_count": 4, "terms": [{"term": "gentrification", "weight": 0.12}],
+    }
 
 
 def test_article_must_belong_to_analysis(client):
     add_analysis("an1")
     add_analysis("an2")
-    add_chunk("an1", "a1", "a1#0")
+    add_article("an1", "a1")
     assert client.get("/api/analyses/an1/articles/a1").status_code == 200
     assert client.get("/api/analyses/an2/articles/a1").status_code == 404
 
@@ -63,8 +79,9 @@ def test_article_must_belong_to_analysis(client):
 def test_delete_cascades_rows_and_vectors(client):
     add_analysis("an1")
     add_analysis("an2")
-    add_chunk("an1", "a1", "a1#0")
-    add_chunk("an2", "b1", "b1#0")
+    add_article("an1", "a1")
+    add_cluster("an1", 0, "Zero")
+    add_article("an2", "b1")
     store.write_embeddings("an1", [{"chunk_id": "a1#0", "article_id": "a1", "vector": [0.1, 0.2]}])
 
     assert client.delete("/api/analyses/an1").status_code == 204
@@ -72,11 +89,11 @@ def test_delete_cascades_rows_and_vectors(client):
     conn = connect()
     counts = {
         t: conn.execute(f"SELECT COUNT(*) FROM {t} WHERE analysis_id='an1'").fetchone()[0]
-        for t in ("articles", "chunks", "projections")
+        for t in ("articles", "chunks", "placements", "clusters")
     }
     other = conn.execute("SELECT COUNT(*) FROM chunks WHERE analysis_id='an2'").fetchone()[0]
     conn.close()
-    assert counts == {"articles": 0, "chunks": 0, "projections": 0}
+    assert counts == {"articles": 0, "chunks": 0, "placements": 0, "clusters": 0}
     assert other == 1
     assert store.open_table("an1") is None
     assert client.get("/api/analyses/an1").status_code == 404

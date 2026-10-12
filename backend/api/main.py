@@ -83,37 +83,32 @@ class AnalysisEvent(BaseModel):
     url: str | None
 
 
-class CorpusPoint(BaseModel):
-    chunk_id: str
+class MapArticle(BaseModel):
+    """An article as placed on the map."""
+
     article_id: str
-    child_text: str | None
     url: str
     title: str | None
     domain: str | None
     publish_date: str | None
+    word_count: int | None
     x: float
     y: float
-    cluster_id: int
-    cluster_label: str | None
-    distance_from_centroid: float
-    word_count: int | None
+    cluster_id: int  # -1 = unclustered
+    distance: float  # cosine distance to its topic's centre: the outlier score
+
+
+class Term(BaseModel):
+    term: str
+    weight: float
 
 
 class Cluster(BaseModel):
     cluster_id: int
-    cluster_label: str | None
+    label: str
+    description: str | None
     article_count: int
-
-
-class Outlier(BaseModel):
-    chunk_id: str
-    cluster_id: int
-    cluster_label: str | None
-    distance_from_centroid: float
-    article_id: str
-    title: str | None
-    domain: str | None
-    publish_date: str | None
+    terms: list[Term]
 
 
 class Article(BaseModel):
@@ -165,36 +160,22 @@ def fetch_events(conn: sqlite3.Connection, analysis_id: str, after: int = 0) -> 
     return [AnalysisEvent(**dict(r)) for r in rows]
 
 
-def fetch_outliers(
-    conn: sqlite3.Connection, analysis_id: str, cluster_id: int | None = None, limit: int = 50
-) -> list[dict]:
-    """One row per article — its chunk furthest from its cluster centroid —
-    ordered by that distance, optionally restricted to one cluster."""
+def fetch_clusters(conn: sqlite3.Connection, analysis_id: str) -> list[Cluster]:
     rows = conn.execute(
-        """
-        SELECT chunk_id, cluster_id, cluster_label, distance_from_centroid,
-               article_id, title, domain, publish_date
-        FROM (
-            SELECT p.chunk_id, p.cluster_id, p.cluster_label,
-                   p.distance_from_centroid,
-                   c.article_id, a.title, a.domain, a.publish_date,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY c.article_id
-                       ORDER BY p.distance_from_centroid DESC
-                   ) AS rn
-            FROM projections p
-            JOIN chunks c ON c.id = p.chunk_id
-            JOIN articles a ON a.id = c.article_id
-            WHERE p.analysis_id = :aid AND a.status = 'ok'
-              AND (:cid IS NULL OR p.cluster_id = :cid)
-        )
-        WHERE rn = 1
-        ORDER BY distance_from_centroid DESC
-        LIMIT :limit
-        """,
-        {"aid": analysis_id, "cid": cluster_id, "limit": limit},
+        "SELECT cluster_id, label, description, article_count, terms FROM clusters "
+        "WHERE analysis_id = ? ORDER BY cluster_id",
+        (analysis_id,),
     ).fetchall()
-    return [dict(r) for r in rows]
+    return [
+        Cluster(
+            cluster_id=r["cluster_id"],
+            label=r["label"],
+            description=r["description"],
+            article_count=r["article_count"],
+            terms=[Term(term=t, weight=w) for t, w in json_lib.loads(r["terms"])],
+        )
+        for r in rows
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -336,57 +317,35 @@ async def stream_analysis(analysis_id: str, last_event_id: int = Header(0)):
 # Analysis data
 # ---------------------------------------------------------------------------
 
-@app.get("/api/analyses/{analysis_id}/corpus")
-def get_corpus(analysis_id: str) -> list[CorpusPoint]:
+@app.get("/api/analyses/{analysis_id}/articles")
+def list_articles(analysis_id: str) -> list[MapArticle]:
+    """Every article on the map, with its position, topic and outlier score."""
     conn = connect()
     try:
         _get_analysis(conn, analysis_id)
         rows = conn.execute(
             """
-            SELECT p.chunk_id, c.article_id, c.child_text, a.url, a.title, a.domain,
-                   a.publish_date, p.x, p.y, p.cluster_id, p.cluster_label,
-                   p.distance_from_centroid, a.word_count
-            FROM projections p
-            JOIN chunks c ON c.id = p.chunk_id
-            JOIN articles a ON a.id = c.article_id
-            WHERE p.analysis_id = ? AND a.status = 'ok'
-            ORDER BY p.cluster_id, p.distance_from_centroid
+            SELECT p.article_id, a.url, a.title, a.domain, a.publish_date, a.word_count,
+                   p.x, p.y, p.cluster_id, p.distance
+            FROM placements p
+            JOIN articles a ON a.id = p.article_id
+            WHERE p.analysis_id = ?
+            ORDER BY p.cluster_id, p.distance
             """,
             (analysis_id,),
         ).fetchall()
     finally:
         conn.close()
-    return [CorpusPoint(**dict(r)) for r in rows]
+    return [MapArticle(**dict(r)) for r in rows]
 
 
 @app.get("/api/analyses/{analysis_id}/clusters")
 def get_clusters(analysis_id: str) -> list[Cluster]:
+    """Topics, largest first, with their key terms. Unclustered articles have none."""
     conn = connect()
     try:
         _get_analysis(conn, analysis_id)
-        rows = conn.execute(
-            """
-            SELECT p.cluster_id, p.cluster_label,
-                   COUNT(DISTINCT c.article_id) AS article_count
-            FROM projections p
-            JOIN chunks c ON c.id = p.chunk_id
-            WHERE p.analysis_id = ?
-            GROUP BY p.cluster_id, p.cluster_label
-            ORDER BY p.cluster_id
-            """,
-            (analysis_id,),
-        ).fetchall()
-    finally:
-        conn.close()
-    return [Cluster(**dict(r)) for r in rows]
-
-
-@app.get("/api/analyses/{analysis_id}/outliers")
-def get_outliers(analysis_id: str, cluster_id: int | None = None) -> list[Outlier]:
-    conn = connect()
-    try:
-        _get_analysis(conn, analysis_id)
-        return [Outlier(**r) for r in fetch_outliers(conn, analysis_id, cluster_id)]
+        return fetch_clusters(conn, analysis_id)
     finally:
         conn.close()
 
@@ -431,36 +390,24 @@ def export_obsidian(analysis_id: str):
         topic = _get_analysis(conn, analysis_id)["topic"]
         rows = conn.execute(
             """
-            SELECT
-                a.id AS article_id, a.title, a.url, a.domain,
-                a.publish_date, a.word_count,
-                AVG(p.x) AS x, AVG(p.y) AS y,
-                MIN(p.cluster_id) AS cluster_id,
-                MIN(p.cluster_label) AS cluster_label
-            FROM projections p
-            JOIN chunks c ON c.id = p.chunk_id
-            JOIN articles a ON a.id = c.article_id
-            WHERE p.analysis_id = ? AND a.status = 'ok'
-            GROUP BY a.id, a.title, a.url, a.domain, a.publish_date, a.word_count
-            ORDER BY MIN(p.cluster_id)
+            SELECT a.id AS article_id, a.title, a.url, a.domain, a.publish_date,
+                   a.word_count, p.x, p.y, p.cluster_id,
+                   COALESCE(c.label, 'Unclustered') AS cluster_label
+            FROM placements p
+            JOIN articles a ON a.id = p.article_id
+            LEFT JOIN clusters c
+              ON c.analysis_id = p.analysis_id AND c.cluster_id = p.cluster_id
+            WHERE p.analysis_id = ?
+            ORDER BY p.cluster_id < 0, p.cluster_id
             """,
             (analysis_id,),
         ).fetchall()
         rows = [dict(r) for r in rows]
 
-        clusters = conn.execute(
-            """
-            SELECT p.cluster_label, COUNT(DISTINCT c.article_id) AS article_count
-            FROM projections p
-            JOIN chunks c ON c.id = p.chunk_id
-            JOIN articles a ON a.id = c.article_id
-            WHERE p.analysis_id = ? AND a.status = 'ok'
-            GROUP BY p.cluster_label
-            ORDER BY MIN(p.cluster_id)
-            """,
-            (analysis_id,),
-        ).fetchall()
-        clusters = [dict(r) for r in clusters]
+        counts: dict[str, int] = {}
+        for r in rows:
+            counts[r["cluster_label"]] = counts.get(r["cluster_label"], 0) + 1
+        clusters = [{"cluster_label": k, "article_count": n} for k, n in counts.items()]
     finally:
         conn.close()
 
