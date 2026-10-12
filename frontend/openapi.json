@@ -426,9 +426,82 @@
       }
     },
     "/api/analyses/{analysis_id}/chat": {
+      "get": {
+        "summary": "Get Chat",
+        "description": "The saved conversation for this analysis, oldest first.",
+        "operationId": "get_chat",
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatMessage"
+                  },
+                  "title": "Response Get Chat"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear Chat",
+        "operationId": "clear_chat",
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
-        "summary": "Chat",
-        "operationId": "chat",
+        "summary": "Ask",
+        "description": "Ask a question; the answer streams as server-sent events:\n  sources \u2014 the numbered excerpts the answer may cite (ChatSource[])\n  delta   \u2014 {\"text\": ...}, a piece of the answer as it's written\n  done    \u2014 the saved answer (ChatMessage), with each source's `cited` set\n  error   \u2014 {\"detail\": ...}; nothing is saved\nThe question and answer are saved together only when the answer completes.",
+        "operationId": "ask",
         "parameters": [
           {
             "name": "analysis_id",
@@ -454,11 +527,7 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatResponse"
-                }
-              }
+              "text/event-stream": {}
             }
           },
           "422": {
@@ -779,44 +848,78 @@
         ],
         "title": "Article"
       },
+      "ChatMessage": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ChatSource"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sources"
+          },
+          "created_ts": {
+            "type": "integer",
+            "title": "Created Ts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "text",
+          "sources",
+          "created_ts"
+        ],
+        "title": "ChatMessage"
+      },
       "ChatRequest": {
         "properties": {
-          "query": {
+          "question": {
             "type": "string",
             "maxLength": 2000,
             "minLength": 1,
-            "title": "Query"
+            "title": "Question"
           }
         },
         "type": "object",
         "required": [
-          "query"
+          "question"
         ],
         "title": "ChatRequest"
       },
-      "ChatResponse": {
+      "ChatSource": {
         "properties": {
-          "answer": {
-            "type": "string",
-            "title": "Answer"
+          "n": {
+            "type": "integer",
+            "title": "N"
           },
-          "citations": {
-            "items": {
-              "$ref": "#/components/schemas/Citation"
-            },
-            "type": "array",
-            "title": "Citations"
-          }
-        },
-        "type": "object",
-        "required": [
-          "answer",
-          "citations"
-        ],
-        "title": "ChatResponse"
-      },
-      "Citation": {
-        "properties": {
+          "article_id": {
+            "type": "string",
+            "title": "Article Id"
+          },
           "url": {
             "type": "string",
             "title": "Url"
@@ -828,15 +931,41 @@
           "domain": {
             "type": "string",
             "title": "Domain"
+          },
+          "publish_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publish Date"
+          },
+          "cited": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cited"
           }
         },
         "type": "object",
         "required": [
+          "n",
+          "article_id",
           "url",
           "title",
-          "domain"
+          "domain",
+          "publish_date"
         ],
-        "title": "Citation"
+        "title": "ChatSource",
+        "description": "An excerpt the answer could cite as [n]."
       },
       "Cluster": {
         "properties": {

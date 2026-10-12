@@ -5,14 +5,15 @@
  */
 import { client } from './api/gen/client.gen';
 import * as sdk from './api/gen/sdk.gen';
-import type { Analysis } from './api/gen/types.gen';
+import { readSse } from './api/sse';
+import type { Analysis, ChatMessage, ChatSource } from './api/gen/types.gen';
 
 export type {
 	Analysis,
 	AnalysisEvent,
 	Article,
-	ChatResponse,
-	Citation,
+	ChatMessage,
+	ChatSource,
 	Cluster,
 	MapArticle,
 	Term
@@ -74,8 +75,60 @@ export const api = {
 	getClusters: (id: string, fetch?: Fetch) => unwrap(sdk.getClusters({ ...path(id), fetch })),
 	getArticle: (id: string, articleId: string) =>
 		unwrap(sdk.getArticle({ path: { analysis_id: id, article_id: articleId } })),
-	chat: (id: string, query: string) => unwrap(sdk.chat({ ...path(id), body: { query } }))
+	getChat: (id: string) => unwrap(sdk.getChat(path(id))),
+	clearChat: (id: string) => unwrap(sdk.clearChat(path(id))),
+	ask: streamAnswer
 };
+
+export interface AnswerHandlers {
+	onSources: (sources: ChatSource[]) => void;
+	onText: (piece: string) => void;
+}
+
+/**
+ * Ask a question and stream the answer. Resolves with the saved answer once
+ * it's complete; rejects with ApiError on failure (nothing is saved then).
+ * Aborting the signal stops the answer (also unsaved).
+ */
+async function streamAnswer(
+	id: string,
+	question: string,
+	handlers: AnswerHandlers,
+	signal?: AbortSignal
+): Promise<ChatMessage> {
+	let response: Response;
+	try {
+		response = await fetch(`/api/analyses/${encodeURIComponent(id)}/chat`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ question }),
+			signal
+		});
+	} catch (e) {
+		if ((e as Error).name === 'AbortError') throw e;
+		throw new ApiError(`Can't reach the Discourse Lens server. (${(e as Error).message})`, 0);
+	}
+	if (!response.ok) {
+		let body: unknown;
+		try {
+			body = await response.json();
+		} catch {
+			/* not JSON */
+		}
+		throw new ApiError(
+			detailOf(body) ?? `Request failed (HTTP ${response.status})`,
+			response.status
+		);
+	}
+	for await (const { event, data } of readSse(response)) {
+		const payload = JSON.parse(data);
+		if (event === 'sources') handlers.onSources(payload);
+		else if (event === 'delta') handlers.onText(payload.text);
+		else if (event === 'done') return payload as ChatMessage;
+		else if (event === 'error') throw new ApiError(payload.detail, 502);
+	}
+	throw new ApiError('The answer was cut off before it finished.', 0);
+}
 
 export const RUNNING: ReadonlyArray<Analysis['status']> = [
 	'queued',

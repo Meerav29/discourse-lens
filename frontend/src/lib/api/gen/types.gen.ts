@@ -137,33 +137,55 @@ export type Article = {
 };
 
 /**
+ * ChatMessage
+ */
+export type ChatMessage = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Role
+     */
+    role: 'user' | 'assistant';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Sources
+     */
+    sources: Array<ChatSource> | null;
+    /**
+     * Created Ts
+     */
+    created_ts: number;
+};
+
+/**
  * ChatRequest
  */
 export type ChatRequest = {
     /**
-     * Query
+     * Question
      */
-    query: string;
+    question: string;
 };
 
 /**
- * ChatResponse
+ * ChatSource
+ *
+ * An excerpt the answer could cite as [n].
  */
-export type ChatResponse = {
+export type ChatSource = {
     /**
-     * Answer
+     * N
      */
-    answer: string;
+    n: number;
     /**
-     * Citations
+     * Article Id
      */
-    citations: Array<Citation>;
-};
-
-/**
- * Citation
- */
-export type Citation = {
+    article_id: string;
     /**
      * Url
      */
@@ -176,6 +198,14 @@ export type Citation = {
      * Domain
      */
     domain: string;
+    /**
+     * Publish Date
+     */
+    publish_date: string | null;
+    /**
+     * Cited
+     */
+    cited?: boolean | null;
 };
 
 /**
@@ -620,7 +650,69 @@ export type GetArticleResponses = {
 
 export type GetArticleResponse = GetArticleResponses[keyof GetArticleResponses];
 
-export type ChatData = {
+export type ClearChatData = {
+    body?: never;
+    path: {
+        /**
+         * Analysis Id
+         */
+        analysis_id: string;
+    };
+    query?: never;
+    url: '/api/analyses/{analysis_id}/chat';
+};
+
+export type ClearChatErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearChatError = ClearChatErrors[keyof ClearChatErrors];
+
+export type ClearChatResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type ClearChatResponse = ClearChatResponses[keyof ClearChatResponses];
+
+export type GetChatData = {
+    body?: never;
+    path: {
+        /**
+         * Analysis Id
+         */
+        analysis_id: string;
+    };
+    query?: never;
+    url: '/api/analyses/{analysis_id}/chat';
+};
+
+export type GetChatErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetChatError = GetChatErrors[keyof GetChatErrors];
+
+export type GetChatResponses = {
+    /**
+     * Response Get Chat
+     *
+     * Successful Response
+     */
+    200: Array<ChatMessage>;
+};
+
+export type GetChatResponse = GetChatResponses[keyof GetChatResponses];
+
+export type AskData = {
     body: ChatRequest;
     path: {
         /**
@@ -632,23 +724,21 @@ export type ChatData = {
     url: '/api/analyses/{analysis_id}/chat';
 };
 
-export type ChatErrors = {
+export type AskErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type ChatError = ChatErrors[keyof ChatErrors];
+export type AskError = AskErrors[keyof AskErrors];
 
-export type ChatResponses = {
+export type AskResponses = {
     /**
      * Successful Response
      */
-    200: ChatResponse;
+    200: unknown;
 };
-
-export type ChatResponse2 = ChatResponses[keyof ChatResponses];
 
 export type ExportObsidianData = {
     body?: never;
