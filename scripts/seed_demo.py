@@ -19,6 +19,7 @@ from pathlib import Path
 from backend.config import settings
 from backend.db import connect, init_db
 from backend.embedding import store
+from backend.synthesis import claims
 
 DEMO_ID = "demo-0000-0000-0000-000000000001"
 DEMO_TOPIC = "Demo: urban heat and city design"
@@ -134,9 +135,35 @@ def seed(reset: bool = False) -> str:
              "The demo articles disagree. Cool roofs act fastest on surface heat [1], while "
              "trees also bring shade along streets [2].", json.dumps(sources), now),
         )
+        conn.execute(
+            "UPDATE analyses SET claims_status='done', claims_detail=? WHERE id=?",
+            ("2 shared claims from 5", DEMO_ID),
+        )
         conn.commit()
     finally:
         conn.close()
+    found = [
+        {"id": f"demo-article-{i:02d}:0", "article_id": f"demo-article-{i:02d}", "position": 0,
+         "text": text}
+        for i, text in [
+            (0, "Cool roofs cut rooftop temperatures more than any other single measure."),
+            (4, "Street trees cool pavements and people more than reflective roofs do."),
+            (1, "Cool roofs help on sunny days but do little for street-level heat."),
+            (8, "The hottest neighbourhoods get the fewest cooling investments."),
+            (9, "Formerly redlined districts still have the least tree cover and shade."),
+        ]
+    ]
+    claims._save(DEMO_ID, found, [
+        {"statement": "Cool roofs are the most effective way to cool a city.", "claims": [
+            {"claim_id": "demo-article-00:0", "stance": "agrees"},
+            {"claim_id": "demo-article-01:0", "stance": "qualifies"},
+            {"claim_id": "demo-article-04:0", "stance": "disputes"},
+        ]},
+        {"statement": "Cooling investment is unevenly spread across neighbourhoods.", "claims": [
+            {"claim_id": "demo-article-08:0", "stance": "agrees"},
+            {"claim_id": "demo-article-09:0", "stance": "agrees"},
+        ]},
+    ])
     store.drop_embeddings(DEMO_ID)
     store.write_embeddings(DEMO_ID, vectors)
     return DEMO_ID

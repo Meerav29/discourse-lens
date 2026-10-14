@@ -14,10 +14,13 @@ export type {
 	Article,
 	ChatMessage,
 	ChatSource,
+	Claims,
 	Cluster,
 	MapArticle,
 	Plan,
 	PlanResult,
+	Proposition,
+	PropositionClaim,
 	Term
 } from './api/gen/types.gen';
 
@@ -83,6 +86,8 @@ export const api = {
 		unwrap(sdk.searchPlan({ ...path(id), body: { queries } })),
 	approvePlan: (id: string, urls: string[]) =>
 		unwrap(sdk.approvePlan({ ...path(id), body: { urls } })),
+	getClaims: (id: string) => unwrap(sdk.getClaims(path(id))),
+	findClaims: (id: string) => unwrap(sdk.findClaims(path(id))),
 	getChat: (id: string) => unwrap(sdk.getChat(path(id))),
 	clearChat: (id: string) => unwrap(sdk.clearChat(path(id))),
 	ask: streamAnswer

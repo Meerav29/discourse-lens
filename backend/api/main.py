@@ -151,6 +151,28 @@ class Article(BaseModel):
     source_note: str | None = None  # set when the text came from an open-access copy
 
 
+class PropositionClaim(BaseModel):
+    claim_id: str
+    article_id: str
+    text: str
+    stance: Literal["agrees", "qualifies", "disputes"]
+
+
+class Proposition(BaseModel):
+    id: int
+    statement: str
+    claims: list[PropositionClaim]
+
+
+class Claims(BaseModel):
+    """Where the articles agree and disagree. status is null until claims are first found."""
+
+    status: Literal["running", "done", "error"] | None
+    detail: str | None
+    claim_count: int
+    propositions: list[Proposition]
+
+
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
 
@@ -463,6 +485,46 @@ def get_article(analysis_id: str, article_id: str) -> Article:
     if row is None:
         raise HTTPException(status_code=404, detail="Article not found")
     return Article(**dict(row))
+
+
+def _claims(analysis_id: str) -> Claims:
+    from backend.synthesis import claims
+
+    conn = connect()
+    try:
+        row = _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    return Claims(
+        status=row["claims_status"],
+        detail=row["claims_detail"],
+        claim_count=claims.claim_count(analysis_id),
+        propositions=[Proposition(**p) for p in claims.load(analysis_id)],
+    )
+
+
+@app.get("/api/analyses/{analysis_id}/claims")
+def get_claims(analysis_id: str) -> Claims:
+    return _claims(analysis_id)
+
+
+@app.post("/api/analyses/{analysis_id}/claims", status_code=202)
+def find_claims(analysis_id: str) -> Claims:
+    """Find each article's claims and where they agree or disagree (Claude requests)."""
+    from backend.synthesis import claims
+
+    conn = connect()
+    try:
+        row = _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    if row["status"] != "done":
+        raise HTTPException(status_code=409, detail="Finish the map before finding claims")
+    try:
+        claims.start(analysis_id)
+    except claims.AlreadyRunning:
+        raise HTTPException(status_code=409, detail="Already finding claims") from None
+    return _claims(analysis_id)
 
 
 @app.get("/api/analyses/{analysis_id}/chat")

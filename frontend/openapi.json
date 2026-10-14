@@ -564,6 +564,83 @@
         }
       }
     },
+    "/api/analyses/{analysis_id}/claims": {
+      "get": {
+        "summary": "Get Claims",
+        "operationId": "get_claims",
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Claims"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Find Claims",
+        "description": "Find each article's claims and where they agree or disagree (Claude requests).",
+        "operationId": "find_claims",
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Claims"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/analyses/{analysis_id}/chat": {
       "get": {
         "summary": "Get Chat",
@@ -1123,6 +1200,57 @@
         "title": "ChatSource",
         "description": "An excerpt the answer could cite as [n]."
       },
+      "Claims": {
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "done",
+                  "error"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "propositions": {
+            "items": {
+              "$ref": "#/components/schemas/Proposition"
+            },
+            "type": "array",
+            "title": "Propositions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "detail",
+          "claim_count",
+          "propositions"
+        ],
+        "title": "Claims",
+        "description": "Where the articles agree and disagree. status is null until claims are first found."
+      },
       "Cluster": {
         "properties": {
           "cluster_id": {
@@ -1353,6 +1481,65 @@
           "queries"
         ],
         "title": "PlanSearch"
+      },
+      "Proposition": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "statement": {
+            "type": "string",
+            "title": "Statement"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/PropositionClaim"
+            },
+            "type": "array",
+            "title": "Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "statement",
+          "claims"
+        ],
+        "title": "Proposition"
+      },
+      "PropositionClaim": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "article_id": {
+            "type": "string",
+            "title": "Article Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "stance": {
+            "type": "string",
+            "enum": [
+              "agrees",
+              "qualifies",
+              "disputes"
+            ],
+            "title": "Stance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "article_id",
+          "text",
+          "stance"
+        ],
+        "title": "PropositionClaim"
       },
       "Term": {
         "properties": {

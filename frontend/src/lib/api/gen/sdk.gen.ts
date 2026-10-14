@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, ServerSentEventsResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApprovePlanData, ApprovePlanErrors, ApprovePlanResponses, AskData, AskErrors, AskResponses, CancelAnalysisData, CancelAnalysisErrors, CancelAnalysisResponses, ClearChatData, ClearChatErrors, ClearChatResponses, CreateAnalysisData, CreateAnalysisErrors, CreateAnalysisResponses, DeleteAnalysisData, DeleteAnalysisErrors, DeleteAnalysisResponses, ExportObsidianData, ExportObsidianErrors, ExportObsidianResponses, GetAnalysisData, GetAnalysisErrors, GetAnalysisResponses, GetArticleData, GetArticleErrors, GetArticleResponses, GetChatData, GetChatErrors, GetChatResponses, GetClustersData, GetClustersErrors, GetClustersResponses, GetEventsData, GetEventsErrors, GetEventsResponses, GetPlanData, GetPlanErrors, GetPlanResponses, HealthData, HealthResponses, ListAnalysesData, ListAnalysesResponses, ListArticlesData, ListArticlesErrors, ListArticlesResponses, SearchPlanData, SearchPlanErrors, SearchPlanResponses, StreamAnalysisData, StreamAnalysisErrors, StreamAnalysisResponses } from './types.gen';
+import type { ApprovePlanData, ApprovePlanErrors, ApprovePlanResponses, AskData, AskErrors, AskResponses, CancelAnalysisData, CancelAnalysisErrors, CancelAnalysisResponses, ClearChatData, ClearChatErrors, ClearChatResponses, CreateAnalysisData, CreateAnalysisErrors, CreateAnalysisResponses, DeleteAnalysisData, DeleteAnalysisErrors, DeleteAnalysisResponses, ExportObsidianData, ExportObsidianErrors, ExportObsidianResponses, FindClaimsData, FindClaimsErrors, FindClaimsResponses, GetAnalysisData, GetAnalysisErrors, GetAnalysisResponses, GetArticleData, GetArticleErrors, GetArticleResponses, GetChatData, GetChatErrors, GetChatResponses, GetClaimsData, GetClaimsErrors, GetClaimsResponses, GetClustersData, GetClustersErrors, GetClustersResponses, GetEventsData, GetEventsErrors, GetEventsResponses, GetPlanData, GetPlanErrors, GetPlanResponses, HealthData, HealthResponses, ListAnalysesData, ListAnalysesResponses, ListArticlesData, ListArticlesErrors, ListArticlesResponses, SearchPlanData, SearchPlanErrors, SearchPlanResponses, StreamAnalysisData, StreamAnalysisErrors, StreamAnalysisResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -123,6 +123,18 @@ export const getClusters = <ThrowOnError extends boolean = false>(options: Optio
  * Get Article
  */
 export const getArticle = <ThrowOnError extends boolean = false>(options: Options<GetArticleData, ThrowOnError>): RequestResult<GetArticleResponses, GetArticleErrors, ThrowOnError> => (options.client ?? client).get<GetArticleResponses, GetArticleErrors, ThrowOnError>({ url: '/api/analyses/{analysis_id}/articles/{article_id}', ...options });
+
+/**
+ * Get Claims
+ */
+export const getClaims = <ThrowOnError extends boolean = false>(options: Options<GetClaimsData, ThrowOnError>): RequestResult<GetClaimsResponses, GetClaimsErrors, ThrowOnError> => (options.client ?? client).get<GetClaimsResponses, GetClaimsErrors, ThrowOnError>({ url: '/api/analyses/{analysis_id}/claims', ...options });
+
+/**
+ * Find Claims
+ *
+ * Find each article's claims and where they agree or disagree (Claude requests).
+ */
+export const findClaims = <ThrowOnError extends boolean = false>(options: Options<FindClaimsData, ThrowOnError>): RequestResult<FindClaimsResponses, FindClaimsErrors, ThrowOnError> => (options.client ?? client).post<FindClaimsResponses, FindClaimsErrors, ThrowOnError>({ url: '/api/analyses/{analysis_id}/claims', ...options });
 
 /**
  * Clear Chat

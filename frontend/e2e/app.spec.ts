@@ -113,3 +113,21 @@ test('an unknown map shows a helpful not-found page', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Not found' })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Back to all maps' })).toBeVisible();
 });
+
+test('claims show where articles agree and open the source', async ({ page }) => {
+	await openDemo(page, '/claims');
+	const main = page.getByRole('main');
+	const debated = main.getByRole('button', { name: /Cool roofs are the most effective/ });
+	// Most debated first: the contested point leads.
+	await expect(main.getByRole('button', { expanded: false }).first()).toHaveAccessibleName(
+		/Cool roofs are the most effective/
+	);
+	await expect(debated).toContainText('3 articles: 1 agree, 1 qualify, 1 dispute');
+
+	await debated.click();
+	await expect(main.getByText('Street trees cool pavements and people')).toBeVisible();
+	await main.getByRole('button', { name: /Street trees and shade equity/ }).click();
+	await expect(
+		page.getByRole('dialog').getByRole('heading', { name: 'Street trees and shade equity' })
+	).toBeVisible();
+});

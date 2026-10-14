@@ -217,6 +217,30 @@ export type ChatSource = {
 };
 
 /**
+ * Claims
+ *
+ * Where the articles agree and disagree. status is null until claims are first found.
+ */
+export type Claims = {
+    /**
+     * Status
+     */
+    status: 'running' | 'done' | 'error' | null;
+    /**
+     * Detail
+     */
+    detail: string | null;
+    /**
+     * Claim Count
+     */
+    claim_count: number;
+    /**
+     * Propositions
+     */
+    propositions: Array<Proposition>;
+};
+
+/**
  * Cluster
  */
 export type Cluster = {
@@ -356,6 +380,46 @@ export type PlanSearch = {
      * Queries
      */
     queries: Array<string>;
+};
+
+/**
+ * Proposition
+ */
+export type Proposition = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Statement
+     */
+    statement: string;
+    /**
+     * Claims
+     */
+    claims: Array<PropositionClaim>;
+};
+
+/**
+ * PropositionClaim
+ */
+export type PropositionClaim = {
+    /**
+     * Claim Id
+     */
+    claim_id: string;
+    /**
+     * Article Id
+     */
+    article_id: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Stance
+     */
+    stance: 'agrees' | 'qualifies' | 'disputes';
 };
 
 /**
@@ -805,6 +869,66 @@ export type GetArticleResponses = {
 };
 
 export type GetArticleResponse = GetArticleResponses[keyof GetArticleResponses];
+
+export type GetClaimsData = {
+    body?: never;
+    path: {
+        /**
+         * Analysis Id
+         */
+        analysis_id: string;
+    };
+    query?: never;
+    url: '/api/analyses/{analysis_id}/claims';
+};
+
+export type GetClaimsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetClaimsError = GetClaimsErrors[keyof GetClaimsErrors];
+
+export type GetClaimsResponses = {
+    /**
+     * Successful Response
+     */
+    200: Claims;
+};
+
+export type GetClaimsResponse = GetClaimsResponses[keyof GetClaimsResponses];
+
+export type FindClaimsData = {
+    body?: never;
+    path: {
+        /**
+         * Analysis Id
+         */
+        analysis_id: string;
+    };
+    query?: never;
+    url: '/api/analyses/{analysis_id}/claims';
+};
+
+export type FindClaimsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FindClaimsError = FindClaimsErrors[keyof FindClaimsErrors];
+
+export type FindClaimsResponses = {
+    /**
+     * Successful Response
+     */
+    202: Claims;
+};
+
+export type FindClaimsResponse = FindClaimsResponses[keyof FindClaimsResponses];
 
 export type ClearChatData = {
     body?: never;

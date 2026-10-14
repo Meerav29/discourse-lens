@@ -18,7 +18,7 @@ from backend.config import settings
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 _SCHEMA = Path(__file__).parent / "schema.sql"
 
 # Chunk-level map rows used by schema v2/v3, before placements + clusters.
@@ -59,6 +59,9 @@ def init_db(db_path: str | None = None) -> None:
         _ensure_column(conn, "analyses", "stage_detail", "TEXT")
         _ensure_column(conn, "articles", "source_note", "TEXT")  # v5 -> v6
         _ensure_column(conn, "analyses", "plan", "TEXT")  # v6 -> v7: review step
+        # v7 -> v8: claim finding (claims/propositions tables come from the schema script)
+        _ensure_column(conn, "analyses", "claims_status", "TEXT")
+        _ensure_column(conn, "analyses", "claims_detail", "TEXT")
         if _table_exists(conn, "projections"):
             _migrate_projections(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -67,6 +70,10 @@ def init_db(db_path: str | None = None) -> None:
             f"UPDATE analyses SET status='error', error_msg=?, updated_ts=? "
             f"WHERE status IN ({placeholders})",
             ("Interrupted by a server restart", int(time.time()), *RUNNING_STATUSES),
+        )
+        conn.execute(
+            "UPDATE analyses SET claims_status='error', "
+            "claims_detail='Interrupted by a server restart' WHERE claims_status='running'"
         )
         conn.commit()
     finally:

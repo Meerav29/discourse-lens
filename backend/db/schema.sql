@@ -1,4 +1,4 @@
--- Schema version 7 (PRAGMA user_version = 7): every row belongs to an analysis.
+-- Schema version 8 (PRAGMA user_version = 8): every row belongs to an analysis.
 -- Deleting an analysis cascades to everything it collected
 -- (requires PRAGMA foreign_keys = ON, set by backend.db.connect).
 
@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS analyses (
   progress      INTEGER DEFAULT 0,  -- 0-100
   stage_detail  TEXT,               -- e.g. "Crawled 47 of 112 pages"
   plan          TEXT,               -- review step: JSON {queries, results[{url,title,snippet,query}]}
+  claims_status TEXT,               -- claim finding: NULL (never run) | running | done | error
+  claims_detail TEXT,               -- its progress, summary or error message
   article_count INTEGER DEFAULT 0,
   error_msg     TEXT,
   warning       TEXT,               -- non-fatal warning, e.g. low article yield
@@ -94,3 +96,29 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_ts   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chat_analysis ON chat_messages(analysis_id, id);
+
+-- Claims: what each article argues or reports (found on demand by Claude)
+CREATE TABLE IF NOT EXISTS claims (
+  id           TEXT PRIMARY KEY,   -- {article_id}:{position}
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  article_id   TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL,
+  text         TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_claims_analysis ON claims(analysis_id);
+
+-- Propositions: points two or more articles take a position on
+CREATE TABLE IF NOT EXISTS propositions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL,   -- 0 = most important
+  statement    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_propositions_analysis ON propositions(analysis_id);
+
+CREATE TABLE IF NOT EXISTS proposition_claims (
+  proposition_id INTEGER NOT NULL REFERENCES propositions(id) ON DELETE CASCADE,
+  claim_id       TEXT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+  stance         TEXT NOT NULL,    -- agrees | qualifies | disputes
+  PRIMARY KEY (proposition_id, claim_id)
+);

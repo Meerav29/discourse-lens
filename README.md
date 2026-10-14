@@ -108,11 +108,12 @@ cd frontend && npm run build && npx playwright install chromium && npm run test:
 
 1. On the home page, type a topic (e.g. `mechanistic interpretability in large language models`) and choose **Map this topic**. Tick **Let me check the sources before they're read** to see the searches and pages first: edit the searches, untick pages, or add your own before anything is read.
 2. A map takes **3–8 minutes**. Academic publishers often block automated reading; for those pages (and for PDF links) Discourse Lens looks up an open-access copy or the abstract through OpenAlex and Europe PMC, and the article reader says where the text came from. You'll see each step as it happens: the search queries, pages crawled, articles kept or skipped (and why), and clusters as they're named. You can leave the page, or **Cancel this map**.
-3. When it's done you get five views of the same map:
+3. When it's done you get six views of the same map:
    - **Map**: articles that make similar arguments sit close together, grouped into topics (camps) with contour lines and a name for each. Switch to **Table** for a plain list.
    - **Timeline**: articles per month or year, by cluster.
    - **Outliers**: articles furthest from the middle of their cluster.
    - **Key terms**: each topic's one-line summary and the words it uses far more than the others.
+   - **Claims**: the points two or more articles take a position on, and whether each article agrees, qualifies or disputes them, with the most debated first. Click a point to see each article's claim and open the article. This view runs only when you choose **Find claims**, because it costs Claude requests: about half a cent per article (roughly $0.30 for a 50-article map; about a minute).
    - **Ask**: questions answered only from this map's articles. Answers stream in as they're written, with numbered citations like **[3]**; click one to read that article. Follow-up questions build on earlier answers, and a citation number means the same article for the whole conversation. Conversations are saved with the map.
 4. Pick a topic in the **Clusters** panel to focus every view on it (and read its summary). Articles that don't fit any topic well are grouped as **Unclustered** rather than forced into one. Click any article to read it in a side panel. The address bar keeps the view, cluster and open article, so links and reloads land in the same place.
 5. **Export to Obsidian** downloads a vault: a Canvas of the map plus one note per article.

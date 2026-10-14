@@ -24,6 +24,7 @@
 		{ view: 'timeline', slug: 'timeline', label: 'Timeline' },
 		{ view: 'outliers', slug: 'outliers', label: 'Outliers' },
 		{ view: 'terms', slug: 'terms', label: 'Key terms' },
+		{ view: 'claims', slug: 'claims', label: 'Claims' },
 		{ view: 'ask', slug: 'ask', label: 'Ask' }
 	];
 

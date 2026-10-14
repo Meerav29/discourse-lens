@@ -16,6 +16,7 @@ const VIEW_ROUTES = {
 	timeline: '/analysis/[id]/timeline',
 	outliers: '/analysis/[id]/outliers',
 	terms: '/analysis/[id]/terms',
+	claims: '/analysis/[id]/claims',
 	ask: '/analysis/[id]/ask'
 } as const;
 
