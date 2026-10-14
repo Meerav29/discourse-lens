@@ -16,6 +16,8 @@ export type {
 	ChatSource,
 	Cluster,
 	MapArticle,
+	Plan,
+	PlanResult,
 	Term
 } from './api/gen/types.gen';
 
@@ -67,7 +69,8 @@ const path = (analysis_id: string) => ({ path: { analysis_id } });
 
 export const api = {
 	listAnalyses: (fetch?: Fetch) => unwrap(sdk.listAnalyses({ fetch })),
-	createAnalysis: (topic: string) => unwrap(sdk.createAnalysis({ body: { topic } })),
+	createAnalysis: (topic: string, review = false) =>
+		unwrap(sdk.createAnalysis({ body: { topic, review } })),
 	getAnalysis: (id: string, fetch?: Fetch) => unwrap(sdk.getAnalysis({ ...path(id), fetch })),
 	deleteAnalysis: (id: string) => unwrap(sdk.deleteAnalysis(path(id))),
 	cancelAnalysis: (id: string) => unwrap(sdk.cancelAnalysis(path(id))),
@@ -75,6 +78,11 @@ export const api = {
 	getClusters: (id: string, fetch?: Fetch) => unwrap(sdk.getClusters({ ...path(id), fetch })),
 	getArticle: (id: string, articleId: string) =>
 		unwrap(sdk.getArticle({ path: { analysis_id: id, article_id: articleId } })),
+	getPlan: (id: string) => unwrap(sdk.getPlan(path(id))),
+	searchPlan: (id: string, queries: string[]) =>
+		unwrap(sdk.searchPlan({ ...path(id), body: { queries } })),
+	approvePlan: (id: string, urls: string[]) =>
+		unwrap(sdk.approvePlan({ ...path(id), body: { urls } })),
 	getChat: (id: string) => unwrap(sdk.getChat(path(id))),
 	clearChat: (id: string) => unwrap(sdk.clearChat(path(id))),
 	ask: streamAnswer
@@ -133,6 +141,7 @@ async function streamAnswer(
 export const RUNNING: ReadonlyArray<Analysis['status']> = [
 	'queued',
 	'crawling',
+	'reviewing',
 	'processing',
 	'embedding',
 	'projecting'

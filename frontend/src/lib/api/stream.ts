@@ -22,7 +22,9 @@ export function followAnalysis(id: string, handlers: StreamHandlers): () => void
 		const analysis = JSON.parse(e.data) as Analysis;
 		handlers.onAnalysis(analysis);
 		if (
-			!['queued', 'crawling', 'processing', 'embedding', 'projecting'].includes(analysis.status)
+			!['queued', 'crawling', 'reviewing', 'processing', 'embedding', 'projecting'].includes(
+				analysis.status
+			)
 		) {
 			finished = true;
 			source.close();

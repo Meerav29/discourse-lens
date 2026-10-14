@@ -54,12 +54,37 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 AnalysisStatus = Literal[
-    "queued", "crawling", "processing", "embedding", "projecting", "done", "error", "cancelled"
+    "queued", "crawling", "reviewing", "processing", "embedding", "projecting", "done", "error",
+    "cancelled",
 ]
 
 
 class AnalysisCreate(BaseModel):
     topic: str = Field(min_length=1, max_length=500)
+    # Pause after searching so the user can edit queries and choose pages.
+    review: bool = False
+
+
+class PlanResult(BaseModel):
+    url: str
+    title: str
+    snippet: str
+    query: str
+
+
+class Plan(BaseModel):
+    """What a paused analysis found: its queries and the pages they returned."""
+
+    queries: list[str]
+    results: list[PlanResult]
+
+
+class PlanSearch(BaseModel):
+    queries: list[str] = Field(min_length=1, max_length=12)
+
+
+class PlanApprove(BaseModel):
+    urls: list[str] = Field(min_length=1)
 
 
 class Analysis(BaseModel):
@@ -213,7 +238,7 @@ async def create_analysis(req: AnalysisCreate) -> Analysis:
         row = _get_analysis(conn, analysis_id)
     finally:
         conn.close()
-    pipeline.start(analysis_id, topic)
+    pipeline.start(analysis_id, topic, review=req.review)
     return Analysis(**dict(row))
 
 
@@ -262,6 +287,72 @@ def cancel_analysis(analysis_id: str) -> Analysis:
     if row["status"] not in RUNNING_STATUSES or not pipeline.cancel(analysis_id):
         raise HTTPException(status_code=409, detail="Analysis is not running")
     return Analysis(**dict(row))
+
+
+def _awaiting_review(analysis_id: str) -> pipeline.RunContext:
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    ctx = pipeline.context(analysis_id)
+    if ctx is None or not ctx.awaiting_review():
+        raise HTTPException(status_code=409, detail="This analysis isn't waiting for review")
+    return ctx
+
+
+@app.get("/api/analyses/{analysis_id}/plan")
+def get_plan(analysis_id: str) -> Plan:
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    plan = pipeline.load_plan(analysis_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="This analysis has no search plan")
+    return Plan(**plan)
+
+
+@app.post("/api/analyses/{analysis_id}/plan/search")
+def search_plan(analysis_id: str, req: PlanSearch) -> Plan:
+    """Run edited queries again while the analysis waits for review."""
+    from backend.ingestion.search import search_all
+
+    _awaiting_review(analysis_id)
+    queries = [q.strip() for q in req.queries if q.strip()]
+    if not queries:
+        raise HTTPException(status_code=422, detail="Give at least one search query")
+    results = search_all(queries)
+    plan = pipeline.save_plan(analysis_id, queries, results)
+    from backend.db import add_event, update_analysis
+
+    update_analysis(analysis_id, stage_detail=f"Waiting for you to review {len(results)} pages")
+    add_event(analysis_id, "stage", f"Searched again: {len(results)} pages")
+    return Plan(**plan)
+
+
+@app.post("/api/analyses/{analysis_id}/plan/approve", status_code=202)
+def approve_plan(analysis_id: str, req: PlanApprove) -> Analysis:
+    """Continue the paused analysis with the chosen pages (search results or your own URLs)."""
+    from urllib.parse import urlparse
+
+    ctx = _awaiting_review(analysis_id)
+    urls = list(dict.fromkeys(u.strip() for u in req.urls if u.strip()))
+    bad = [u for u in urls if urlparse(u).scheme not in ("http", "https") or not urlparse(u).netloc]
+    if bad:
+        raise HTTPException(status_code=422, detail=f"Not a web address: {bad[0]}")
+    if len(urls) > settings.max_articles:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Choose at most {settings.max_articles} pages (you chose {len(urls)})",
+        )
+    ctx.approve(urls)
+    conn = connect()
+    try:
+        return Analysis(**dict(_get_analysis(conn, analysis_id)))
+    finally:
+        conn.close()
 
 
 @app.get("/api/analyses/{analysis_id}/events")

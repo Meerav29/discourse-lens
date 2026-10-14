@@ -14,6 +14,7 @@ deleted; the analysis row stays, with status 'cancelled'.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
 import time
@@ -46,16 +47,51 @@ class Cancelled(BaseException):  # noqa: N818 — mirrors asyncio.CancelledError
 
 
 class RunContext:
-    """Progress reporting, event logging and the cancel flag for one run."""
+    """Progress reporting, event logging, the cancel flag and the review pause for one run."""
 
-    def __init__(self, analysis_id: str):
+    def __init__(self, analysis_id: str, review: bool = False):
         self.analysis_id = analysis_id
+        self.review = review
         self._cancel = threading.Event()
         self._last_write = 0.0
+        # Review pause: the pipeline awaits _resume; approve() or cancel() sets it.
+        # Both may be called from other threads, hence call_soon_threadsafe.
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._resume: asyncio.Event | None = None
+        self._plan_ready = False  # set (in the search thread) once the plan is saved
+        self.approved_urls: list[str] | None = None
+
+    def prepare_review(self) -> None:
+        """Create the pause before searching, so it exists by the time anyone can approve."""
+        self._loop = asyncio.get_running_loop()
+        self._resume = asyncio.Event()
+
+    def plan_ready(self) -> None:
+        self._plan_ready = True
+
+    async def wait_for_review(self) -> list[str]:
+        assert self._resume is not None, "prepare_review() first"
+        if self.cancelled():
+            raise Cancelled
+        await self._resume.wait()
+        self.check()
+        return self.approved_urls or []
+
+    def awaiting_review(self) -> bool:
+        return self._plan_ready and self._resume is not None and not self._resume.is_set()
+
+    def approve(self, urls: list[str]) -> None:
+        self.approved_urls = urls
+        self._wake()
+
+    def _wake(self) -> None:
+        if self._loop is not None and self._resume is not None:
+            self._loop.call_soon_threadsafe(self._resume.set)
 
     # -- cancellation --
     def cancel(self) -> None:
         self._cancel.set()
+        self._wake()
 
     def cancelled(self) -> bool:
         return self._cancel.is_set()
@@ -91,12 +127,17 @@ class RunContext:
 _runs: dict[str, tuple[asyncio.Task, RunContext]] = {}
 
 
-def start(analysis_id: str, topic: str) -> None:
+def start(analysis_id: str, topic: str, review: bool = False) -> None:
     """Start a run on the current event loop."""
-    ctx = RunContext(analysis_id)
+    ctx = RunContext(analysis_id, review)
     task = asyncio.get_running_loop().create_task(run_pipeline(ctx, topic))
     _runs[analysis_id] = (task, ctx)
     task.add_done_callback(lambda _t: _runs.pop(analysis_id, None))
+
+
+def context(analysis_id: str) -> RunContext | None:
+    entry = _runs.get(analysis_id)
+    return entry[1] if entry else None
 
 
 def cancel(analysis_id: str) -> bool:
@@ -120,7 +161,15 @@ def cancel_all() -> None:
 async def run_pipeline(ctx: RunContext, topic: str) -> None:
     analysis_id = ctx.analysis_id
     try:
-        urls = await asyncio.to_thread(_search, ctx, topic)
+        if ctx.review:
+            ctx.prepare_review()
+            await asyncio.to_thread(_search_for_review, ctx, topic)
+            urls = await ctx.wait_for_review()
+            if not urls:
+                raise RuntimeError("No pages were approved for reading.")
+            ctx.event("stage", f"Approved {len(urls)} pages")
+        else:
+            urls = await asyncio.to_thread(_search, ctx, topic)
         crawled = await asyncio.to_thread(_crawl, ctx, urls)
         ok_articles = await asyncio.to_thread(_extract_and_store, ctx, crawled, urls)
         await asyncio.to_thread(_chunk_and_store, ctx, ok_articles)
@@ -167,6 +216,43 @@ def _search(ctx: RunContext, topic: str) -> list[str]:
     if not urls:
         raise RuntimeError("Search returned no results — check BRAVE_API_KEY or try another topic.")
     return urls
+
+
+def _search_for_review(ctx: RunContext, topic: str) -> None:
+    """Search, then save the plan and pause until the user approves pages."""
+    from backend.ingestion.search import collect_results
+
+    ctx.stage("crawling", SEARCH, "Generating search queries")
+
+    def on_query(done: int, total: int, query: str, new: int | None) -> None:
+        ctx.event("warning" if new is None else "query",
+                  f"Search failed: {query}" if new is None else f"{query} ({new} new results)")
+        ctx.progress(SEARCH, done / total, f"Searched {done} of {total} queries")
+        ctx.check()
+
+    queries, results = collect_results(topic, on_query=on_query)
+    save_plan(ctx.analysis_id, queries, results)
+    ctx.plan_ready()  # before the status flips, so "reviewing" always means "ready to approve"
+    update_analysis(ctx.analysis_id, status="reviewing", progress=SEARCH[1],
+                    stage_detail=f"Waiting for you to review {len(results)} pages")
+    ctx.event("stage", f"Found {len(results)} pages. Waiting for your review")
+
+
+def save_plan(analysis_id: str, queries: list[str], results: list) -> dict:
+    from dataclasses import asdict
+
+    plan = {"queries": queries, "results": [asdict(r) for r in results]}
+    update_analysis(analysis_id, plan=json.dumps(plan))
+    return plan
+
+
+def load_plan(analysis_id: str) -> dict | None:
+    conn = connect()
+    try:
+        row = conn.execute("SELECT plan FROM analyses WHERE id = ?", (analysis_id,)).fetchone()
+    finally:
+        conn.close()
+    return json.loads(row["plan"]) if row and row["plan"] else None
 
 
 def _crawl(ctx: RunContext, urls: list[str]) -> list[dict]:

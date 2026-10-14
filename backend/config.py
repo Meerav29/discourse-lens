@@ -15,8 +15,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Search
+    # Search: brave (needs BRAVE_API_KEY) or searxng (self-hosted, needs SEARXNG_URL)
+    search_provider: Literal["brave", "searxng"] = "brave"
     brave_api_key: str = ""
+    searxng_url: str = ""
     max_articles: int = 120
 
     # Look up open-access copies of academic pages the crawler can't read (OpenAlex, Europe PMC)

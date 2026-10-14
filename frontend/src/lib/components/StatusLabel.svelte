@@ -3,6 +3,7 @@
 	import { isRunning } from '#lib/api.ts';
 	import { plural } from '#lib/format.ts';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import CircleDot from '@lucide/svelte/icons/circle-dot';
 	import CircleX from '@lucide/svelte/icons/circle-x';
 	import CircleSlash from '@lucide/svelte/icons/circle-slash';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
@@ -20,6 +21,9 @@
 	{:else if analysis.status === 'cancelled'}
 		<CircleSlash size={15} class="text-muted" aria-hidden="true" />
 		Cancelled
+	{:else if analysis.status === 'reviewing'}
+		<CircleDot size={15} class="text-accent" aria-hidden="true" />
+		Waiting for your review
 	{:else if isRunning(analysis)}
 		<LoaderCircle size={15} class="animate-spin text-accent" aria-hidden="true" />
 		Mapping, {analysis.progress}%

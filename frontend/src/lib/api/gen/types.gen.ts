@@ -19,7 +19,7 @@ export type Analysis = {
     /**
      * Status
      */
-    status: 'queued' | 'crawling' | 'processing' | 'embedding' | 'projecting' | 'done' | 'error' | 'cancelled';
+    status: 'queued' | 'crawling' | 'reviewing' | 'processing' | 'embedding' | 'projecting' | 'done' | 'error' | 'cancelled';
     /**
      * Progress
      */
@@ -58,6 +58,10 @@ export type AnalysisCreate = {
      * Topic
      */
     topic: string;
+    /**
+     * Review
+     */
+    review?: boolean;
 };
 
 /**
@@ -297,6 +301,64 @@ export type MapArticle = {
 };
 
 /**
+ * Plan
+ *
+ * What a paused analysis found: its queries and the pages they returned.
+ */
+export type Plan = {
+    /**
+     * Queries
+     */
+    queries: Array<string>;
+    /**
+     * Results
+     */
+    results: Array<PlanResult>;
+};
+
+/**
+ * PlanApprove
+ */
+export type PlanApprove = {
+    /**
+     * Urls
+     */
+    urls: Array<string>;
+};
+
+/**
+ * PlanResult
+ */
+export type PlanResult = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Snippet
+     */
+    snippet: string;
+    /**
+     * Query
+     */
+    query: string;
+};
+
+/**
+ * PlanSearch
+ */
+export type PlanSearch = {
+    /**
+     * Queries
+     */
+    queries: Array<string>;
+};
+
+/**
  * Term
  */
 export type Term = {
@@ -484,6 +546,96 @@ export type CancelAnalysisResponses = {
 };
 
 export type CancelAnalysisResponse = CancelAnalysisResponses[keyof CancelAnalysisResponses];
+
+export type GetPlanData = {
+    body?: never;
+    path: {
+        /**
+         * Analysis Id
+         */
+        analysis_id: string;
+    };
+    query?: never;
+    url: '/api/analyses/{analysis_id}/plan';
+};
+
+export type GetPlanErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPlanError = GetPlanErrors[keyof GetPlanErrors];
+
+export type GetPlanResponses = {
+    /**
+     * Successful Response
+     */
+    200: Plan;
+};
+
+export type GetPlanResponse = GetPlanResponses[keyof GetPlanResponses];
+
+export type SearchPlanData = {
+    body: PlanSearch;
+    path: {
+        /**
+         * Analysis Id
+         */
+        analysis_id: string;
+    };
+    query?: never;
+    url: '/api/analyses/{analysis_id}/plan/search';
+};
+
+export type SearchPlanErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchPlanError = SearchPlanErrors[keyof SearchPlanErrors];
+
+export type SearchPlanResponses = {
+    /**
+     * Successful Response
+     */
+    200: Plan;
+};
+
+export type SearchPlanResponse = SearchPlanResponses[keyof SearchPlanResponses];
+
+export type ApprovePlanData = {
+    body: PlanApprove;
+    path: {
+        /**
+         * Analysis Id
+         */
+        analysis_id: string;
+    };
+    query?: never;
+    url: '/api/analyses/{analysis_id}/plan/approve';
+};
+
+export type ApprovePlanErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApprovePlanError = ApprovePlanErrors[keyof ApprovePlanErrors];
+
+export type ApprovePlanResponses = {
+    /**
+     * Successful Response
+     */
+    202: Analysis;
+};
+
+export type ApprovePlanResponse = ApprovePlanResponses[keyof ApprovePlanResponses];
 
 export type GetEventsData = {
     body?: never;

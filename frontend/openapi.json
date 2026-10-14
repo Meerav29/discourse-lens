@@ -188,6 +188,145 @@
         }
       }
     },
+    "/api/analyses/{analysis_id}/plan": {
+      "get": {
+        "summary": "Get Plan",
+        "operationId": "get_plan",
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analyses/{analysis_id}/plan/search": {
+      "post": {
+        "summary": "Search Plan",
+        "description": "Run edited queries again while the analysis waits for review.",
+        "operationId": "search_plan",
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanSearch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analyses/{analysis_id}/plan/approve": {
+      "post": {
+        "summary": "Approve Plan",
+        "description": "Continue the paused analysis with the chosen pages (search results or your own URLs).",
+        "operationId": "approve_plan",
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanApprove"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Analysis"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/analyses/{analysis_id}/events": {
       "get": {
         "summary": "Get Events",
@@ -598,6 +737,7 @@
             "enum": [
               "queued",
               "crawling",
+              "reviewing",
               "processing",
               "embedding",
               "projecting",
@@ -679,6 +819,11 @@
             "maxLength": 500,
             "minLength": 1,
             "title": "Topic"
+          },
+          "review": {
+            "type": "boolean",
+            "title": "Review",
+            "default": false
           }
         },
         "type": "object",
@@ -1120,6 +1265,94 @@
         ],
         "title": "MapArticle",
         "description": "An article as placed on the map."
+      },
+      "Plan": {
+        "properties": {
+          "queries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Queries"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PlanResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queries",
+          "results"
+        ],
+        "title": "Plan",
+        "description": "What a paused analysis found: its queries and the pages they returned."
+      },
+      "PlanApprove": {
+        "properties": {
+          "urls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Urls"
+          }
+        },
+        "type": "object",
+        "required": [
+          "urls"
+        ],
+        "title": "PlanApprove"
+      },
+      "PlanResult": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "title",
+          "snippet",
+          "query"
+        ],
+        "title": "PlanResult"
+      },
+      "PlanSearch": {
+        "properties": {
+          "queries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Queries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queries"
+        ],
+        "title": "PlanSearch"
       },
       "Term": {
         "properties": {

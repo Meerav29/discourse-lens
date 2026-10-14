@@ -11,7 +11,8 @@ from backend.embedding import store
 def client(isolated, monkeypatch):
     started = []
     monkeypatch.setattr(
-        main.pipeline, "start", lambda analysis_id, topic: started.append((analysis_id, topic))
+        main.pipeline, "start",
+        lambda analysis_id, topic, review=False: started.append((analysis_id, topic))
     )
     with TestClient(main.app) as c:
         c.started = started

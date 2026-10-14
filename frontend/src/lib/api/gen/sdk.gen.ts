@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, ServerSentEventsResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AskData, AskErrors, AskResponses, CancelAnalysisData, CancelAnalysisErrors, CancelAnalysisResponses, ClearChatData, ClearChatErrors, ClearChatResponses, CreateAnalysisData, CreateAnalysisErrors, CreateAnalysisResponses, DeleteAnalysisData, DeleteAnalysisErrors, DeleteAnalysisResponses, ExportObsidianData, ExportObsidianErrors, ExportObsidianResponses, GetAnalysisData, GetAnalysisErrors, GetAnalysisResponses, GetArticleData, GetArticleErrors, GetArticleResponses, GetChatData, GetChatErrors, GetChatResponses, GetClustersData, GetClustersErrors, GetClustersResponses, GetEventsData, GetEventsErrors, GetEventsResponses, HealthData, HealthResponses, ListAnalysesData, ListAnalysesResponses, ListArticlesData, ListArticlesErrors, ListArticlesResponses, StreamAnalysisData, StreamAnalysisErrors, StreamAnalysisResponses } from './types.gen';
+import type { ApprovePlanData, ApprovePlanErrors, ApprovePlanResponses, AskData, AskErrors, AskResponses, CancelAnalysisData, CancelAnalysisErrors, CancelAnalysisResponses, ClearChatData, ClearChatErrors, ClearChatResponses, CreateAnalysisData, CreateAnalysisErrors, CreateAnalysisResponses, DeleteAnalysisData, DeleteAnalysisErrors, DeleteAnalysisResponses, ExportObsidianData, ExportObsidianErrors, ExportObsidianResponses, GetAnalysisData, GetAnalysisErrors, GetAnalysisResponses, GetArticleData, GetArticleErrors, GetArticleResponses, GetChatData, GetChatErrors, GetChatResponses, GetClustersData, GetClustersErrors, GetClustersResponses, GetEventsData, GetEventsErrors, GetEventsResponses, GetPlanData, GetPlanErrors, GetPlanResponses, HealthData, HealthResponses, ListAnalysesData, ListAnalysesResponses, ListArticlesData, ListArticlesErrors, ListArticlesResponses, SearchPlanData, SearchPlanErrors, SearchPlanResponses, StreamAnalysisData, StreamAnalysisErrors, StreamAnalysisResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -56,6 +56,39 @@ export const getAnalysis = <ThrowOnError extends boolean = false>(options: Optio
  * Ask a running analysis to stop; it reaches status 'cancelled' shortly after.
  */
 export const cancelAnalysis = <ThrowOnError extends boolean = false>(options: Options<CancelAnalysisData, ThrowOnError>): RequestResult<CancelAnalysisResponses, CancelAnalysisErrors, ThrowOnError> => (options.client ?? client).post<CancelAnalysisResponses, CancelAnalysisErrors, ThrowOnError>({ url: '/api/analyses/{analysis_id}/cancel', ...options });
+
+/**
+ * Get Plan
+ */
+export const getPlan = <ThrowOnError extends boolean = false>(options: Options<GetPlanData, ThrowOnError>): RequestResult<GetPlanResponses, GetPlanErrors, ThrowOnError> => (options.client ?? client).get<GetPlanResponses, GetPlanErrors, ThrowOnError>({ url: '/api/analyses/{analysis_id}/plan', ...options });
+
+/**
+ * Search Plan
+ *
+ * Run edited queries again while the analysis waits for review.
+ */
+export const searchPlan = <ThrowOnError extends boolean = false>(options: Options<SearchPlanData, ThrowOnError>): RequestResult<SearchPlanResponses, SearchPlanErrors, ThrowOnError> => (options.client ?? client).post<SearchPlanResponses, SearchPlanErrors, ThrowOnError>({
+    url: '/api/analyses/{analysis_id}/plan/search',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve Plan
+ *
+ * Continue the paused analysis with the chosen pages (search results or your own URLs).
+ */
+export const approvePlan = <ThrowOnError extends boolean = false>(options: Options<ApprovePlanData, ThrowOnError>): RequestResult<ApprovePlanResponses, ApprovePlanErrors, ThrowOnError> => (options.client ?? client).post<ApprovePlanResponses, ApprovePlanErrors, ThrowOnError>({
+    url: '/api/analyses/{analysis_id}/plan/approve',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Get Events

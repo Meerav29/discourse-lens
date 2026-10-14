@@ -1,4 +1,4 @@
--- Schema version 6 (PRAGMA user_version = 6): every row belongs to an analysis.
+-- Schema version 7 (PRAGMA user_version = 7): every row belongs to an analysis.
 -- Deleting an analysis cascades to everything it collected
 -- (requires PRAGMA foreign_keys = ON, set by backend.db.connect).
 
@@ -6,9 +6,10 @@
 CREATE TABLE IF NOT EXISTS analyses (
   id            TEXT PRIMARY KEY,   -- uuid4
   topic         TEXT NOT NULL,
-  status        TEXT NOT NULL,      -- queued | crawling | processing | embedding | projecting | done | error | cancelled
+  status        TEXT NOT NULL,      -- queued | crawling | reviewing | processing | embedding | projecting | done | error | cancelled
   progress      INTEGER DEFAULT 0,  -- 0-100
   stage_detail  TEXT,               -- e.g. "Crawled 47 of 112 pages"
+  plan          TEXT,               -- review step: JSON {queries, results[{url,title,snippet,query}]}
   article_count INTEGER DEFAULT 0,
   error_msg     TEXT,
   warning       TEXT,               -- non-fatal warning, e.g. low article yield

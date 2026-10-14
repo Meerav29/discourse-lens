@@ -9,7 +9,7 @@ Discourse Lens takes a topic, reads ~100 relevant articles from the web, and map
 - Python 3.12 and [uv](https://docs.astral.sh/uv/)
 - Node.js 20.19+ (Vite 8)
 - [Ollama](https://ollama.com) (for local embeddings) — or an OpenAI API key
-- A [Brave Search API key](https://brave.com/search/api) (free tier: 2000 queries/month)
+- A [Brave Search API key](https://brave.com/search/api) (free tier: 2000 queries/month), or a self-hosted [SearXNG](https://docs.searxng.org) instance with the JSON format enabled (`SEARCH_PROVIDER=searxng`, `SEARXNG_URL=http://localhost:8888`)
 - An [Anthropic API key](https://console.anthropic.com) (for chat and cluster labelling)
 
 ---
@@ -111,7 +111,7 @@ cd frontend && npm run build && npx playwright install chromium && npm run test:
 
 ## Using it
 
-1. On the home page, type a topic (e.g. `mechanistic interpretability in large language models`) and choose **Map this topic**.
+1. On the home page, type a topic (e.g. `mechanistic interpretability in large language models`) and choose **Map this topic**. Tick **Let me check the sources before they're read** to see the searches and pages first: edit the searches, untick pages, or add your own before anything is read.
 2. A map takes **3–8 minutes**. Academic publishers often block automated reading; for those pages (and for PDF links) Discourse Lens looks up an open-access copy or the abstract through OpenAlex and Europe PMC, and the article reader says where the text came from. You'll see each step as it happens: the search queries, pages crawled, articles kept or skipped (and why), and clusters as they're named. You can leave the page, or **Cancel this map**.
 3. When it's done you get five views of the same map:
    - **Map**: articles that make similar arguments sit close together, grouped into topics (camps) with contour lines and a name for each. Switch to **Table** for a plain list.

@@ -21,6 +21,7 @@
 	];
 
 	let topic = $state('');
+	let review = $state(false);
 	let submitting = $state(false);
 	let formError = $state<string | null>(null);
 	let input: HTMLInputElement;
@@ -32,7 +33,7 @@
 		submitting = true;
 		formError = null;
 		try {
-			const analysis = await api.createAnalysis(t);
+			const analysis = await api.createAnalysis(t, review);
 			await goto(resolve('/analysis/[id]', { id: analysis.id }));
 		} catch (err) {
 			formError = (err as Error).message;
@@ -109,6 +110,10 @@
 					{submitting ? 'Starting…' : 'Map this topic'}
 				</button>
 			</form>
+			<label class="mt-3 inline-flex items-center gap-2 text-sm text-ink-2">
+				<input type="checkbox" bind:checked={review} class="size-4 accent-[var(--accent)]" />
+				Let me check the sources before they're read
+			</label>
 			{#if formError}
 				<p class="mt-3 text-sm text-danger" role="alert">{formError}</p>
 			{/if}

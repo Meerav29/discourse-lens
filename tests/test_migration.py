@@ -73,7 +73,7 @@ def test_corpus_becomes_latest_finished_job(tmp_path, monkeypatch):
         "article_id": "a1", "analysis_id": None, "x": 1.0, "y": 2.0, "cluster_id": 0, "distance": 0.5,
     }
     assert conn.execute("SELECT label FROM clusters").fetchone()[0] == "Label"
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()
     assert not tables & {"jobs", "articles_v1", "projections"}

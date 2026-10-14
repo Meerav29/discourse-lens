@@ -18,7 +18,7 @@ from backend.config import settings
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 _SCHEMA = Path(__file__).parent / "schema.sql"
 
 # Chunk-level map rows used by schema v2/v3, before placements + clusters.
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS projections (
 """
 
 # Analyses still in one of these states are being worked on by a pipeline.
-RUNNING_STATUSES = ("queued", "crawling", "processing", "embedding", "projecting")
+RUNNING_STATUSES = ("queued", "crawling", "reviewing", "processing", "embedding", "projecting")
 
 
 def connect(db_path: str | None = None) -> sqlite3.Connection:
@@ -58,6 +58,7 @@ def init_db(db_path: str | None = None) -> None:
         conn.executescript(_SCHEMA.read_text())
         _ensure_column(conn, "analyses", "stage_detail", "TEXT")
         _ensure_column(conn, "articles", "source_note", "TEXT")  # v5 -> v6
+        _ensure_column(conn, "analyses", "plan", "TEXT")  # v6 -> v7: review step
         if _table_exists(conn, "projections"):
             _migrate_projections(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
