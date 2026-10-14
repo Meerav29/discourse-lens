@@ -17,6 +17,7 @@ dependencies = [
     "playwright>=1.45",
     "pyarrow>=15",
     "pydantic-settings>=2.4",
+    "pypdf>=5",
     "scikit-learn>=1.5",
     "tiktoken>=0.7",
     "trafilatura>=2.0",

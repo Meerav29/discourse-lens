@@ -18,6 +18,7 @@ import logging
 import threading
 import time
 
+from backend.config import settings
 from backend.db import add_event, connect, update_analysis
 
 log = logging.getLogger(__name__)
@@ -27,8 +28,9 @@ LOW_YIELD_THRESHOLD = 30
 # Progress bands (percent) for each stage.
 SEARCH = (0, 10)
 CRAWL = (10, 55)
-EXTRACT = (55, 65)
-CHUNK = (65, 68)
+EXTRACT = (55, 62)
+RECOVER = (62, 66)
+CHUNK = (66, 68)
 EMBED = (68, 88)
 PROJECT = (88, 99)
 
@@ -120,7 +122,7 @@ async def run_pipeline(ctx: RunContext, topic: str) -> None:
     try:
         urls = await asyncio.to_thread(_search, ctx, topic)
         crawled = await asyncio.to_thread(_crawl, ctx, urls)
-        ok_articles = await asyncio.to_thread(_extract_and_store, ctx, crawled)
+        ok_articles = await asyncio.to_thread(_extract_and_store, ctx, crawled, urls)
         await asyncio.to_thread(_chunk_and_store, ctx, ok_articles)
         await asyncio.to_thread(_embed_and_store, ctx)
         await asyncio.to_thread(_project, ctx)
@@ -189,13 +191,17 @@ def _crawl(ctx: RunContext, urls: list[str]) -> list[dict]:
     return crawled
 
 
-def _extract_and_store(ctx: RunContext, crawled: list[dict]) -> list[dict]:
+def _extract_and_store(ctx: RunContext, crawled: list[dict], urls: list[str]) -> list[dict]:
     from backend.ingestion.extractor import SkipArticle, article_id, extract_article
     from backend.processing.metadata import extract_publish_date
 
     analysis_id = ctx.analysis_id
     ctx.stage("processing", EXTRACT, f"Extracting text from {len(crawled)} pages")
     ok_articles: list[dict] = []
+    # Pages worth asking the scholarly indexes about: unreadable or too short
+    # (often a publisher's bot check), and pages the crawler couldn't open.
+    crawled_urls = {item["url"] for item in crawled}
+    unreadable: list[tuple[str, str | None]] = [(u, None) for u in urls if u not in crawled_urls]
     conn = connect()
     try:
         for i, item in enumerate(crawled, start=1):
@@ -214,10 +220,13 @@ def _extract_and_store(ctx: RunContext, crawled: list[dict]) -> list[dict]:
                 # their own connections and would wait on this transaction.
                 conn.commit()
                 ctx.event("skip", str(skip).capitalize(), url)
+                if not str(skip).startswith("not English"):
+                    unreadable.append((url, html))
                 continue
             except Exception:
                 log.warning("Extraction failed for %s", url, exc_info=True)
                 ctx.event("skip", "Extraction failed", url)
+                unreadable.append((url, html))
                 continue
 
             conn.execute(
@@ -240,9 +249,89 @@ def _extract_and_store(ctx: RunContext, crawled: list[dict]) -> list[dict]:
             ctx.progress(EXTRACT, i / len(crawled), f"Extracted {i} of {len(crawled)} pages")
     finally:
         conn.close()
+    if settings.recover_academic:
+        ok_articles += _recover_academic(ctx, unreadable)
     if not ok_articles:
         raise RuntimeError("No pages passed the quality filters — try a broader topic.")
     return _drop_duplicate_articles(ctx, ok_articles)
+
+
+RECOVERY_WORKERS = 8
+
+
+def _recover_academic(ctx: RunContext, pages: list[tuple[str, str | None]]) -> list[dict]:
+    """
+    Find open-access full text (or an abstract) for academic pages that came
+    back blocked or empty. Runs a few lookups at a time; cancellable between them.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from urllib.parse import urlparse
+
+    from backend.ingestion import scholarly
+    from backend.ingestion.extractor import article_id
+
+    candidates = [
+        (url, html) for url, html in pages
+        if scholarly.identify(url, html) or urlparse(url).path.lower().endswith(".pdf")
+    ]
+    if not candidates:
+        return []
+    ctx.stage("processing", RECOVER,
+              f"Looking for open-access copies of {len(candidates)} academic pages")
+    recovered: list[dict] = []
+    client = scholarly.new_client()
+    try:
+        with ThreadPoolExecutor(max_workers=RECOVERY_WORKERS) as pool:
+            futures = {
+                pool.submit(scholarly.recover, url, html, client): url for url, html in candidates
+            }
+            for i, future in enumerate(as_completed(futures), start=1):
+                if ctx.cancelled():
+                    for f in futures:
+                        f.cancel()
+                    ctx.check()
+                url = futures[future]
+                found = future.result()
+                ctx.progress(RECOVER, i / len(candidates),
+                             f"Checked {i} of {len(candidates)} academic pages")
+                if found is None:
+                    continue
+                article = _store_recovered(ctx.analysis_id, article_id(ctx.analysis_id, url),
+                                           url, found)
+                recovered.append(article)
+                ctx.event("article", f"{article['title']} ({found.note.lower()})", url)
+    finally:
+        client.close()
+    ctx.check()
+    if recovered:
+        ctx.event("stage", f"Recovered {len(recovered)} academic articles from open sources")
+    return recovered
+
+
+def _store_recovered(analysis_id: str, aid: str, url: str, found) -> dict:
+    from urllib.parse import urlparse
+
+    domain = urlparse(url).netloc
+    title = found.title or domain
+    words = len(found.text.split())
+    conn = connect()
+    try:
+        # The page may already be recorded as filtered; replace that row.
+        conn.execute(
+            "INSERT INTO articles (id, analysis_id, url, domain, title, publish_date, crawl_ts, "
+            " word_count, language, raw_text, status, source_note) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(id) DO UPDATE SET domain=excluded.domain, title=excluded.title, "
+            " publish_date=excluded.publish_date, word_count=excluded.word_count, "
+            " language=excluded.language, raw_text=excluded.raw_text, status=excluded.status, "
+            " source_note=excluded.source_note",
+            (aid, analysis_id, url, domain, title, found.publish_date, int(time.time()),
+             words, "en", found.text, "ok", found.note),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": aid, "url": url, "raw_text": found.text, "title": title}
 
 
 def _drop_duplicate_articles(ctx: RunContext, articles: list[dict]) -> list[dict]:

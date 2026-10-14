@@ -18,7 +18,7 @@ from backend.config import settings
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 _SCHEMA = Path(__file__).parent / "schema.sql"
 
 # Chunk-level map rows used by schema v2/v3, before placements + clusters.
@@ -57,6 +57,7 @@ def init_db(db_path: str | None = None) -> None:
         # v4 -> v5: chat_messages table (schema script).
         conn.executescript(_SCHEMA.read_text())
         _ensure_column(conn, "analyses", "stage_detail", "TEXT")
+        _ensure_column(conn, "articles", "source_note", "TEXT")  # v5 -> v6
         if _table_exists(conn, "projections"):
             _migrate_projections(conn)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")

@@ -211,3 +211,50 @@ def test_progress_maps_into_band_and_throttles(isolated):
 
 def test_cancel_unknown_run_returns_false():
     assert pipeline.cancel("not-running") is False
+
+
+def test_blocked_academic_page_is_recovered(fakes, monkeypatch):
+    """A page that extracts too short but carries a DOI gets its open-access text."""
+    from backend.ingestion import scholarly
+
+    monkeypatch.setattr(
+        "backend.ingestion.search.collect_urls",
+        lambda topic, on_query=None: ["https://a.test/1", "https://a.test/2",
+                                      "https://doi.org/10.1234/blocked.short"],
+    )
+    calls = []
+
+    def fake_recover(url, html, client):
+        calls.append(url)
+        return scholarly.Recovered("A recovered paper", prose(9), "2024-03-01",
+                                   "Open-access PDF from repository.test")
+
+    monkeypatch.setattr(scholarly, "recover", fake_recover)
+    add_analysis("an1", status="queued")
+    _run("an1")
+
+    assert calls == ["https://doi.org/10.1234/blocked.short"]
+    conn = connect()
+    row = dict(conn.execute(
+        "SELECT title, status, source_note, publish_date FROM articles WHERE url LIKE '%blocked%'"
+    ).fetchone())
+    conn.close()
+    assert row == {"title": "A recovered paper", "status": "ok",
+                   "source_note": "Open-access PDF from repository.test", "publish_date": "2024-03-01"}
+    assert _analysis("an1")["article_count"] == 3
+    assert any(e["message"] == "Recovered 1 academic articles from open sources" for e in _events("an1"))
+
+
+def test_recovery_can_be_turned_off(fakes, monkeypatch):
+    from backend.config import settings
+    from backend.ingestion import scholarly
+
+    monkeypatch.setattr(settings, "recover_academic", False)
+    monkeypatch.setattr(scholarly, "recover", lambda *a: pytest.fail("recover called"))
+    monkeypatch.setattr(
+        "backend.ingestion.search.collect_urls",
+        lambda topic, on_query=None: ["https://a.test/1", "https://doi.org/10.1234/x.short"],
+    )
+    add_analysis("an1", status="queued")
+    _run("an1")
+    assert _analysis("an1")["status"] == "done"

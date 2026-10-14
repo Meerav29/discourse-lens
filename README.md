@@ -94,7 +94,7 @@ Checks: `uv run pytest`, `uv run ruff check backend tests`, and in `frontend/`: 
 ## Using it
 
 1. On the home page, type a topic (e.g. `mechanistic interpretability in large language models`) and choose **Map this topic**.
-2. A map takes **3–8 minutes**. You'll see each step as it happens: the search queries, pages crawled, articles kept or skipped (and why), and clusters as they're named. You can leave the page, or **Cancel this map**.
+2. A map takes **3–8 minutes**. Academic publishers often block automated reading; for those pages (and for PDF links) Discourse Lens looks up an open-access copy or the abstract through OpenAlex and Europe PMC, and the article reader says where the text came from. You'll see each step as it happens: the search queries, pages crawled, articles kept or skipped (and why), and clusters as they're named. You can leave the page, or **Cancel this map**.
 3. When it's done you get five views of the same map:
    - **Map**: articles that make similar arguments sit close together, grouped into topics (camps) with contour lines and a name for each. Switch to **Table** for a plain list.
    - **Timeline**: articles per month or year, by cluster.
@@ -121,6 +121,8 @@ Avoid topics that are too broad (`AI`, `climate change`) or too narrow (fewer th
 ---
 
 ## Troubleshooting
+
+**Don't want the open-access lookups?** Set `RECOVER_ACADEMIC=false` in `.env`; academic pages a publisher blocks are then skipped.
 
 **Pipeline stalls at "Crawling"** — Check your `BRAVE_API_KEY` in `.env`.
 

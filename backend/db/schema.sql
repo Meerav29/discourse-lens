@@ -1,4 +1,4 @@
--- Schema version 5 (PRAGMA user_version = 5): every row belongs to an analysis.
+-- Schema version 6 (PRAGMA user_version = 6): every row belongs to an analysis.
 -- Deleting an analysis cascades to everything it collected
 -- (requires PRAGMA foreign_keys = ON, set by backend.db.connect).
 
@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS articles (
   language     TEXT DEFAULT 'en',
   raw_text     TEXT,
   status       TEXT DEFAULT 'ok',  -- ok | filtered | duplicate | error
+  source_note  TEXT,               -- where recovered text came from, e.g. "Full text from Europe PMC"
   UNIQUE (analysis_id, url)
 );
 CREATE INDEX IF NOT EXISTS idx_articles_analysis ON articles(analysis_id);

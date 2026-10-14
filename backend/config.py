@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     brave_api_key: str = ""
     max_articles: int = 120
 
+    # Look up open-access copies of academic pages the crawler can't read (OpenAlex, Europe PMC)
+    recover_academic: bool = True
+
     # Claude
     claude_backend: Literal["anthropic", "vertex"] = "anthropic"
     claude_model: str = "claude-sonnet-5-5"

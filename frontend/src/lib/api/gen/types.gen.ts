@@ -134,6 +134,10 @@ export type Article = {
      * Status
      */
     status: string;
+    /**
+     * Source Note
+     */
+    source_note?: string | null;
 };
 
 /**

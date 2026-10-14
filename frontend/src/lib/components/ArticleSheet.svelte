@@ -3,6 +3,7 @@
 	import { api, type Article } from '#lib/api.ts';
 	import { formatPublishDate } from '#lib/format.ts';
 	import { useWorkspace } from '#lib/workspace.svelte.ts';
+	import BookOpen from '@lucide/svelte/icons/book-open';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import X from '@lucide/svelte/icons/x';
 
@@ -76,6 +77,17 @@
 						{#if article.word_count}<span>{article.word_count.toLocaleString()} words</span>{/if}
 					{/if}
 				</Dialog.Description>
+				{#if article?.source_note}
+					<p
+						class="mt-3 flex items-start gap-2 rounded-md border border-rule px-3 py-2 text-sm text-ink-2"
+					>
+						<BookOpen size={15} class="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
+						<span
+							>{article.source_note}. The publisher's page blocked automated reading, so this text
+							was found through open scholarly indexes.</span
+						>
+					</p>
+				{/if}
 
 				{#if error}
 					<p class="mt-6 text-danger" role="alert">Couldn't load this article: {error}</p>

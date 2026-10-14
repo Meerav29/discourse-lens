@@ -123,6 +123,7 @@ class Article(BaseModel):
     language: str | None
     raw_text: str | None
     status: str
+    source_note: str | None = None  # set when the text came from an open-access copy
 
 
 class ChatRequest(BaseModel):
