@@ -1,0 +1,4 @@
+# Keep line endings consistent across Windows and Linux (CI, tooling)
+* text=auto eol=lf
+*.png binary
+*.svg text eol=lf

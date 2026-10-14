@@ -19,3 +19,4 @@ frontend/build/
 .claude/
 .venv/
 .playwright-mcp/
+.e2e/

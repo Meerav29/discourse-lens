@@ -67,6 +67,12 @@ uv run uvicorn backend.api.main:app --port 8001
 
 Then open [http://localhost:8001](http://localhost:8001). The backend serves the built app and the API from one address.
 
+**No API keys yet?** Load a small synthetic demo map to explore the interface:
+
+```bash
+uv run python -m scripts.seed_demo
+```
+
 ### Working on the frontend
 
 Run the backend as above, plus the Vite dev server with hot reload (it forwards `/api` to port 8001):
@@ -87,7 +93,19 @@ How answers are found: `backend/synthesis/chat.py` (hybrid search: vector simila
 
 How maps are built: `backend/topics.py` (article vectors → UMAP → HDBSCAN → c-TF-IDF, BERTopic's recipe without PyTorch) and `backend/embedding/project.py` (naming topics with Claude).
 
-Checks: `uv run pytest`, `uv run ruff check backend tests`, and in `frontend/`: `npm run check`, `npx vitest run`, `npm run lint`.
+Checks (CI runs all of these on every push and pull request):
+
+```bash
+uv run ruff check backend tests scripts
+uv run pytest
+cd frontend && npm run check && npm run lint && npx vitest run
+```
+
+End-to-end tests drive the real app (backend + built frontend) against the demo map in a throwaway `.e2e/` folder, with no network or API keys:
+
+```bash
+cd frontend && npm run build && npx playwright install chromium && npm run test:e2e
+```
 
 ---
 
