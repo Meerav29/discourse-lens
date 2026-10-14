@@ -1,6 +1,6 @@
 # discourse-lens
 
-Discourse Lens takes a topic, reads ~100 relevant articles from the web, and maps the conversation: which camps exist, how coverage has moved over time, which articles don't fit, and what each camp talks about. You can then ask questions answered only from those articles. Everything runs locally except the search, embedding and Claude API calls.
+Discourse Lens takes a topic, reads ~100 relevant articles from the web, and maps the conversation: which camps exist, how coverage has moved over time, which articles don't fit, and what each camp talks about. You can then ask questions answered only from those articles. Everything runs locally except web search and the Claude API calls.
 
 ---
 
@@ -8,7 +8,6 @@ Discourse Lens takes a topic, reads ~100 relevant articles from the web, and map
 
 - Python 3.12 and [uv](https://docs.astral.sh/uv/)
 - Node.js 20.19+ (Vite 8)
-- [Ollama](https://ollama.com) (for local embeddings) — or an OpenAI API key
 - A [Brave Search API key](https://brave.com/search/api) (free tier: 2000 queries/month), or a self-hosted [SearXNG](https://docs.searxng.org) instance with the JSON format enabled (`SEARCH_PROVIDER=searxng`, `SEARXNG_URL=http://localhost:8888`)
 - An [Anthropic API key](https://console.anthropic.com) (for chat and cluster labelling)
 
@@ -36,13 +35,9 @@ npm run build
 cd ..
 ```
 
-**3. Pull the embedding model** (skip if using OpenAI)
+Embeddings run in-process with [fastembed](https://github.com/qdrant/fastembed) (nomic-embed-text v1.5, no GPU or PyTorch needed). The first map downloads the model once (about 520 MB) to `data/models`. Already running [Ollama](https://ollama.com)? `EMBEDDING_MODE=ollama` uses its `nomic-embed-text` instead. It's the same model with the same vectors, so maps work with either. `EMBEDDING_MODE=openai` uses OpenAI's API, but maps made that way can only be searched with OpenAI.
 
-```bash
-ollama pull nomic-embed-text
-```
-
-**4. Configure API keys**
+**3. Configure API keys**
 
 Copy `.env.example` to `.env` and fill in your keys:
 
@@ -146,7 +141,7 @@ Avoid topics that are too broad (`AI`, `climate change`) or too narrow (fewer th
 
 **Cluster labels show as "cluster 0", "cluster 1"...** — The Anthropic API call for labelling failed. Check your `ANTHROPIC_API_KEY`.
 
-**Embeddings are slow** — You're running Ollama on CPU. Switch to OpenAI embeddings by setting `EMBEDDING_MODE=openai` and `OPENAI_API_KEY=your_key` in `.env`.
+**Embeddings are slow** — Local embedding runs on the CPU: about 3 seconds per 10 chunks, so a few minutes for a typical map. For speed, set `EMBEDDING_MODE=openai` and `OPENAI_API_KEY=your_key` in `.env` (new maps only; see Setup).
 
 **Answers are slow to start or too brief** — `CHAT_EFFORT` in `.env` sets how much the model reasons before answering (`low`, `medium` (default), `high`). In testing, `medium` started answering in about a second, same as `low`.
 

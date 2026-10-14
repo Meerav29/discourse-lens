@@ -43,8 +43,9 @@ def test_dedup_skips_empty_text():
 
 # ── nomic task prefixes ──────────────────────────────────────────────────────
 
-def test_nomic_document_prefix(monkeypatch):
-    monkeypatch.setattr(settings, "embedding_mode", "local")
+@pytest.mark.parametrize("mode", ["fastembed", "ollama", "local"])
+def test_nomic_document_prefix(monkeypatch, mode):
+    monkeypatch.setattr(settings, "embedding_mode", mode)
     assert embed.prepare_texts(["hi"], "document") == ["search_document: hi"]
 
 
@@ -56,6 +57,17 @@ def test_nomic_query_prefix(monkeypatch):
 def test_openai_has_no_prefix(monkeypatch):
     monkeypatch.setattr(settings, "embedding_mode", "openai")
     assert embed.prepare_texts(["hi"], "query") == ["hi"]
+
+
+def test_fastembed_vectors_are_unit_length_like_ollamas(monkeypatch):
+    class FakeModel:
+        def embed(self, texts, batch_size):
+            return iter([[3.0, 4.0]] * len(texts))
+
+    monkeypatch.setattr(settings, "embedding_mode", "fastembed")
+    monkeypatch.setattr(embed, "_fastembed_model", lambda: FakeModel())
+    out = embed.embed_chunks([{"id": "c1", "child_text": "hi"}, {"id": "c2", "child_text": "yo"}])
+    assert out == [{"chunk_id": "c1", "vector": [0.6, 0.8]}, {"chunk_id": "c2", "vector": [0.6, 0.8]}]
 
 
 def test_unknown_kind_rejected():

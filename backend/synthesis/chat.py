@@ -42,6 +42,10 @@ class NoCorpusError(LookupError):
     """The analysis has no indexed vectors to search."""
 
 
+class EmbeddingMismatchError(NoCorpusError):
+    """The map's vectors came from a different embedding model than the current one."""
+
+
 @dataclass
 class Source:
     n: int  # the number answers cite; stable for the whole conversation
@@ -96,6 +100,14 @@ def retrieve(
     # Follow-ups ("what about the second one?") need the earlier question's context.
     semantic_query = f"{previous_question}\n{question}" if previous_question else question
     vector = embed_chunks([{"id": "q", "child_text": semantic_query}], kind="query")[0]["vector"]
+    stored = table.schema.field("vector").type.list_size
+    if len(vector) != stored:
+        raise EmbeddingMismatchError(
+            f"This map was embedded with a different model ({stored}-number vectors, "
+            f"the current EMBEDDING_MODE={settings.embedding_mode} makes {len(vector)}). "
+            + ("Set EMBEDDING_MODE=openai to ask about it." if stored == 1536 else
+               "Set EMBEDDING_MODE=fastembed or ollama to ask about it.")
+        )
     hits = (
         table.search(query_type="hybrid")
         .vector(vector)

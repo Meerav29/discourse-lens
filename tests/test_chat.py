@@ -216,3 +216,10 @@ def test_clear_chat(client):
 
 def test_blank_question_rejected(client):
     assert client.post("/api/analyses/an1/chat", json={"question": ""}).status_code == 422
+
+
+def test_query_from_a_different_embedding_model_is_explained(corpus, monkeypatch):
+    monkeypatch.setattr(chat, "embed_chunks", lambda chunks, kind="document": [
+        {"chunk_id": c["id"], "vector": [0.1] * 768} for c in chunks])
+    with pytest.raises(chat.EmbeddingMismatchError, match="different model"):
+        chat.retrieve("an1", "anything")

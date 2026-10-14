@@ -33,7 +33,12 @@ class Settings(BaseSettings):
     vertex_claude_model: str = "claude-sonnet-5-5"
 
     # Embeddings
-    embedding_mode: Literal["local", "openai"] = "local"
+    # fastembed runs nomic-embed-text in-process; ollama serves the same model
+    # (identical vectors, so maps move freely between the two). "local" is the
+    # old name for ollama. openai vectors are a different size: maps made with
+    # them can only be searched with openai.
+    embedding_mode: Literal["fastembed", "ollama", "local", "openai"] = "fastembed"
+    fastembed_cache: str = "./data/models"
     ollama_base_url: str = "http://localhost:11434"
     openai_api_key: str | None = None
 
