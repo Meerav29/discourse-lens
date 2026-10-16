@@ -134,6 +134,9 @@
 		line-height: 1;
 		cursor: pointer;
 	}
+	.answer :global(.cite-group) {
+		white-space: nowrap;
+	}
 	.answer :global(.cite:hover) {
 		background: var(--accent);
 		color: var(--accent-ink);

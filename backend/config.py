@@ -47,8 +47,6 @@ class Settings(BaseSettings):
     lance_path: str = "./data/vectors"
 
     # Tuning
-    umap_n_neighbors: int = 15
-    kmeans_k: str = "auto"  # "auto" | integer string
     rag_top_k: int = 15
     # Thinking effort for chat answers: low answers sooner, medium reasons more.
     chat_effort: Literal["low", "medium", "high"] = "medium"

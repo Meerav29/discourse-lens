@@ -9,7 +9,9 @@ self-hostable, no key).
 
 from __future__ import annotations
 
+import html
 import logging
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -22,6 +24,13 @@ from backend.config import settings
 log = logging.getLogger(__name__)
 
 RESULTS_PER_QUERY = 20
+
+_TAG = re.compile(r"<[^>]+>")
+
+
+def plain(text: str | None) -> str:
+    """Titles and snippets arrive as HTML (<strong> around matches, &#x27;)."""
+    return " ".join(html.unescape(_TAG.sub("", text or "")).split())
 
 
 @dataclass
@@ -78,7 +87,7 @@ def brave_search(query: str, count: int = RESULTS_PER_QUERY) -> list[SearchResul
         headers={"Accept": "application/json", "X-Subscription-Token": settings.brave_api_key},
     )
     return [
-        SearchResult(r["url"], r.get("title") or "", r.get("description") or "", query)
+        SearchResult(r["url"], plain(r.get("title")), plain(r.get("description")), query)
         for r in resp.json().get("web", {}).get("results", [])
         if "url" in r
     ][:count]
@@ -93,7 +102,7 @@ def searxng_search(query: str, count: int = RESULTS_PER_QUERY) -> list[SearchRes
         headers={"Accept": "application/json"},
     )
     return [
-        SearchResult(r["url"], r.get("title") or "", r.get("content") or "", query)
+        SearchResult(r["url"], plain(r.get("title")), plain(r.get("content")), query)
         for r in resp.json().get("results", [])
         if "url" in r
     ][:count]
