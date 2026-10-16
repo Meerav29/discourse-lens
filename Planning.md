@@ -1,6 +1,8 @@
 # Discourse Lens — Full Project Documentation
 > Research Intelligence Tool | v1.0
 
+> **This is the original v1 plan (April 2026), kept for history.** The app has since been rebuilt (October 2026): many maps instead of one corpus, a topic model in place of k-means, a new SvelteKit 3 frontend, a Claims view, and a different API (`/api/analyses/...`). For how it works now, see [README.md](README.md); for how to check it, see [validation.md](validation.md).
+
 ---
 
 ## Table of Contents
