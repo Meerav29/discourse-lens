@@ -1,0 +1,116 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+@import '@fontsource-variable/mona-sans/wdth.css';
+
+/* mode-watcher toggles a `dark` class on <html> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Survey-chart palette. Cool chart paper and slate-teal ink; one accent
+ * (survey-marker magenta) for the primary action and focus. Cluster hues are
+ * the only other saturated colors — see #lib/palette.
+ */
+:root {
+	color-scheme: light;
+	--paper: #f3f6f7;
+	--raised: #fbfcfc;
+	--ink: #1b2a33;
+	--ink-2: #3e4f59;
+	--muted: #5b6b74;
+	--rule: #c9d4d9;
+	--rule-soft: #dde5e8;
+	--accent: #b0306a;
+	--accent-ink: #ffffff;
+	--danger: #b42318;
+
+	/* Categorical cluster hues, light steps (validated on --paper) */
+	--series-1: #2a78d6;
+	--series-2: #eb6834;
+	--series-3: #1baf7a;
+	--series-4: #eda100;
+	--series-5: #e87ba4;
+	--series-6: #008300;
+	--series-7: #4a3aa7;
+	--series-8: #e34948;
+	--series-other: #8b9aa2;
+}
+
+:root.dark {
+	color-scheme: dark;
+	--paper: #121d25;
+	--raised: #172530;
+	--ink: #dce6ea;
+	--ink-2: #b5c3c9;
+	--muted: #8a9ca5;
+	--rule: #2a3b45;
+	--rule-soft: #1f2e38;
+	--accent: #e0609a;
+	--accent-ink: #121d25;
+	--danger: #f0776b;
+
+	/* Same hues stepped for the night surface (validated on --paper) */
+	--series-1: #3987e5;
+	--series-2: #d95926;
+	--series-3: #199e70;
+	--series-4: #c98500;
+	--series-5: #d55181;
+	--series-6: #008300;
+	--series-7: #9085e9;
+	--series-8: #e66767;
+	--series-other: #5e707a;
+}
+
+@theme inline {
+	--color-paper: var(--paper);
+	--color-raised: var(--raised);
+	--color-ink: var(--ink);
+	--color-ink-2: var(--ink-2);
+	--color-muted: var(--muted);
+	--color-rule: var(--rule);
+	--color-rule-soft: var(--rule-soft);
+	--color-accent: var(--accent);
+	--color-accent-ink: var(--accent-ink);
+	--color-danger: var(--danger);
+	--font-sans: 'Mona Sans Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+	html {
+		background: var(--paper);
+		color: var(--ink);
+		font-family: var(--font-sans);
+		font-size: 15px;
+		line-height: 1.5;
+		-webkit-font-smoothing: antialiased;
+	}
+	body {
+		min-height: 100dvh;
+	}
+	:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+	::selection {
+		background: color-mix(in oklab, var(--accent) 25%, transparent);
+	}
+}
+
+@utility tabular {
+	font-variant-numeric: tabular-nums;
+}
+
+/* Expanded width is the display voice: titles and map labels. */
+@utility display {
+	font-stretch: 125%;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		transition-duration: 0.01ms !important;
+	}
+}

@@ -17,3 +17,6 @@ frontend/build/
 
 # Claude
 .claude/
+.venv/
+.playwright-mcp/
+.e2e/

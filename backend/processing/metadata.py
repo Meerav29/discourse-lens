@@ -2,7 +2,6 @@ import re
 
 import trafilatura
 
-
 # URL date slug patterns, most specific first
 _URL_DATE_PATTERNS = [
     r"/(\d{4})/(\d{1,2})/(\d{1,2})",   # /2024/03/15/

@@ -9,7 +9,7 @@ Parent ID format: {article_id}#p{parent_index}
 from __future__ import annotations
 
 import re
-from typing import Iterator
+from collections.abc import Iterator
 
 import tiktoken
 

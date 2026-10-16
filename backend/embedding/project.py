@@ -1,150 +1,182 @@
 """
-UMAP projection + k-means clustering + cluster labelling.
+Map + topics for one analysis.
 
-Steps:
-1. Load all vectors from LanceDB.
-2. Run UMAP (2D).
-3. Try k-means for k in {5, 7, 10}; pick best silhouette score.
-4. For each chunk compute Euclidean distance to its cluster centroid.
-5. Call Claude once per cluster (top-10 central chunks) to get a 2-3 word label.
-6. Write (chunk_id, x, y, cluster_id, cluster_label, distance_from_centroid)
-   to the SQLite projections table.
+1. Load the analysis's chunk vectors; average them into one vector per article.
+2. Topic model (backend.topics): UMAP → HDBSCAN → merge/assign/cap → 2D map.
+3. Key terms per topic by c-TF-IDF over the articles' text.
+4. One Claude call names every topic at once, so names are distinct.
+5. Replace the analysis's rows in `placements` and `clusters`.
 """
 
 from __future__ import annotations
 
-import math
-import os
-import sqlite3
+import json
+import logging
+from collections.abc import Callable
 
 import numpy as np
-from umap import UMAP
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
 
-from backend.embedding.store import read_all_embeddings, update_cluster_ids
+from backend import topics
+from backend.db import connect
+from backend.embedding.store import read_all_embeddings
 
-DB_PATH = os.getenv("DB_PATH", "./data/discourse.db")
-UMAP_N_NEIGHBORS = int(os.getenv("UMAP_N_NEIGHBORS", "15"))
-KMEANS_K = os.getenv("KMEANS_K", "auto")   # "auto" | integer string
+log = logging.getLogger(__name__)
 
+TERMS_PER_TOPIC = 10
+EXCERPT_CHARS = 400
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _best_k(vectors: np.ndarray) -> int:
-    if KMEANS_K != "auto":
-        return int(KMEANS_K)
-
-    candidates = [k for k in (5, 7, 10) if k < len(vectors)]
-    if not candidates:
-        return max(2, len(vectors) // 10)
-
-    best_k, best_score = candidates[0], -1.0
-    for k in candidates:
-        km = KMeans(n_clusters=k, n_init=10, random_state=42)
-        labels = km.fit_predict(vectors)
-        score = silhouette_score(vectors, labels)
-        if score > best_score:
-            best_k, best_score = k, score
-    return best_k
-
-
-def _euclidean(a: np.ndarray, b: np.ndarray) -> float:
-    return float(np.linalg.norm(a - b))
+LABEL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "topics": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "label": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "required": ["id", "label", "description"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["topics"],
+    "additionalProperties": False,
+}
 
 
-def _label_cluster(cluster_id: int, top_chunks: list[str]) -> str:
-    """Ask Claude for a 2-3 word label for this cluster."""
-    from backend.claude_client import get_client, get_model
-
-    excerpts = "\n\n".join(f"- {t[:300]}" for t in top_chunks)
-    prompt = (
-        f"Below are excerpts from articles in a semantic cluster (cluster {cluster_id}).\n\n"
-        f"{excerpts}\n\n"
-        "Give a 2-3 word descriptive label that captures the main theme of this cluster. "
-        "Respond with ONLY the label, nothing else."
-    )
-    msg = get_client().messages.create(
-        model=get_model(),
-        max_tokens=20,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return msg.content[0].text.strip()
-
-
-# ---------------------------------------------------------------------------
-# Main entry point
-# ---------------------------------------------------------------------------
-
-def run_projection(db_path: str | None = None) -> None:
+def run_projection(
+    analysis_id: str,
+    on_step: Callable[[float, str], None] | None = None,
+    on_label: Callable[[str, int], None] | None = None,
+) -> None:
     """
-    Full projection pipeline. Writes rows to the SQLite projections table.
-    """
-    _db_path = db_path or DB_PATH
+    Build the map and topics for an analysis whose chunks are embedded.
 
-    # 1. Load embeddings
-    rows = read_all_embeddings()
+    on_step(fraction_done, detail) reports progress; on_label(label, n_articles)
+    fires once per topic after naming.
+    """
+
+    def step(fraction: float, detail: str) -> None:
+        if on_step:
+            on_step(fraction, detail)
+
+    rows = read_all_embeddings(analysis_id)
     if not rows:
-        raise RuntimeError("No embeddings found in LanceDB — run embedding step first.")
-
-    chunk_ids = [r["chunk_id"] for r in rows]
-    vectors = np.array([r["vector"] for r in rows], dtype=np.float32)
-    child_texts = {r["chunk_id"]: r["child_text"] for r in rows}
-
-    # 2. UMAP
-    n_neighbors = min(UMAP_N_NEIGHBORS, len(vectors) - 1)
-    reducer = UMAP(n_components=2, n_neighbors=n_neighbors, min_dist=0.1, random_state=42)
-    coords_2d = reducer.fit_transform(vectors)   # shape (N, 2)
-
-    # 3. K-means
-    k = _best_k(vectors)
-    km = KMeans(n_clusters=k, n_init=10, random_state=42)
-    cluster_labels_arr = km.fit_predict(vectors)   # int labels, shape (N,)
-    centroids = km.cluster_centers_               # shape (k, dim)
-
-    # 4. Distance from centroid
-    distances = np.array(
-        [_euclidean(vectors[i], centroids[cluster_labels_arr[i]]) for i in range(len(vectors))]
+        raise RuntimeError("No embeddings found for this analysis — run the embedding step first.")
+    ids, X = topics.article_vectors(
+        np.array([r["vector"] for r in rows], dtype=np.float32),
+        [r["article_id"] for r in rows],
     )
 
-    # 5. Generate cluster text labels via Claude
-    cluster_text_labels: dict[int, str] = {}
-    for cid in range(k):
-        mask = cluster_labels_arr == cid
-        idxs = np.where(mask)[0]
-        # Sort by distance (ascending = most central)
-        sorted_idxs = idxs[np.argsort(distances[idxs])][:10]
-        top_texts = [child_texts[chunk_ids[i]] for i in sorted_idxs]
-        try:
-            cluster_text_labels[cid] = _label_cluster(cid, top_texts)
-        except Exception:
-            cluster_text_labels[cid] = f"cluster {cid}"
+    step(0.0, f"Finding topics among {len(ids)} articles")
+    labels, coords, dist = topics.model_topics(X)
 
-    # 6. Update LanceDB cluster_ids
-    chunk_cluster_map = {chunk_ids[i]: int(cluster_labels_arr[i]) for i in range(len(chunk_ids))}
-    update_cluster_ids(chunk_cluster_map)
+    step(0.6, "Finding each topic's key terms")
+    articles = _load_articles(analysis_id, ids)
+    terms = topics.topic_terms(
+        [articles[i]["raw_text"] or "" for i in ids], labels, top_n=TERMS_PER_TOPIC
+    )
+    reps = topics.representatives(X, labels, k=3)
 
-    # 7. Write projections to SQLite
-    conn = sqlite3.connect(_db_path)
+    step(0.75, f"Naming {len(terms)} topics")
+    named = name_topics(
+        {
+            t: {
+                "terms": [w for w, _ in terms.get(t, [])],
+                "examples": [articles[ids[i]] for i in reps.get(t, [])],
+                "size": int(np.sum(labels == t)),
+            }
+            for t in sorted(terms)
+        }
+    )
+
+    conn = connect()
     try:
+        conn.execute("DELETE FROM placements WHERE analysis_id = ?", (analysis_id,))
+        conn.execute("DELETE FROM clusters WHERE analysis_id = ?", (analysis_id,))
         conn.executemany(
-            "INSERT OR REPLACE INTO projections "
-            "(chunk_id, x, y, cluster_id, cluster_label, distance_from_centroid) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO placements (article_id, analysis_id, x, y, cluster_id, distance) "
+            "VALUES (?,?,?,?,?,?)",
             [
-                (
-                    chunk_ids[i],
-                    float(coords_2d[i, 0]),
-                    float(coords_2d[i, 1]),
-                    int(cluster_labels_arr[i]),
-                    cluster_text_labels[int(cluster_labels_arr[i])],
-                    float(distances[i]),
-                )
-                for i in range(len(chunk_ids))
+                (aid, analysis_id, float(coords[i, 0]), float(coords[i, 1]),
+                 int(labels[i]), float(dist[i]))
+                for i, aid in enumerate(ids)
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO clusters (analysis_id, cluster_id, label, description, article_count, terms) "
+            "VALUES (?,?,?,?,?,?)",
+            [
+                (analysis_id, t, named[t][0], named[t][1], int(np.sum(labels == t)),
+                 json.dumps([[w, round(s, 6)] for w, s in terms.get(t, [])]))
+                for t in sorted(terms)
             ],
         )
         conn.commit()
     finally:
         conn.close()
+
+    if on_label:
+        for t in sorted(terms):
+            on_label(named[t][0], int(np.sum(labels == t)))
+
+
+def _load_articles(analysis_id: str, ids: list[str]) -> dict[str, dict]:
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, title, domain, raw_text FROM articles WHERE analysis_id = ?",
+            (analysis_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    found = {r["id"]: dict(r) for r in rows}
+    return {i: found.get(i, {"id": i, "title": None, "domain": None, "raw_text": ""}) for i in ids}
+
+
+def name_topics(topics_in: dict[int, dict]) -> dict[int, tuple[str, str | None]]:
+    """
+    Name every topic in one request so the names contrast with each other —
+    naming topics one at a time gave near-identical names to neighbours.
+    Falls back to the top key terms if the request fails.
+    """
+    from backend.claude_client import complete
+
+    fallback = {
+        t: (", ".join(info["terms"][:3]).capitalize() or f"Topic {t + 1}", None)
+        for t, info in topics_in.items()
+    }
+    if not topics_in:
+        return {}
+
+    blocks = []
+    for t, info in topics_in.items():
+        examples = "\n".join(
+            f"  - {(a['title'] or a['domain'] or 'Untitled')}: "
+            f"{' '.join((a['raw_text'] or '').split())[:EXCERPT_CHARS]}"
+            for a in info["examples"]
+        )
+        blocks.append(
+            f"Topic {t} ({info['size']} articles)\n"
+            f"Key terms: {', '.join(info['terms'])}\n"
+            f"Most typical articles:\n{examples}"
+        )
+    prompt = (
+        "These topics were found by clustering articles about one subject. For each topic, "
+        "write a label of 2 to 4 words naming the angle or camp it represents, and one "
+        "sentence (under 25 words) describing what its articles argue or cover.\n\n"
+        "Labels must be clearly different from each other: they will sit side by side on a "
+        "map, so name what sets each topic apart rather than the subject they all share. "
+        "Use sentence case.\n\n" + "\n\n".join(blocks)
+    )
+    try:
+        data = json.loads(complete(prompt, max_tokens=8000, effort="low", json_schema=LABEL_SCHEMA))
+        named = {int(item["id"]): (item["label"].strip(), item["description"].strip())
+                 for item in data["topics"]}
+    except Exception:
+        log.warning("Naming topics failed; using key terms instead", exc_info=True)
+        return fallback
+    return {t: named.get(t) or fallback[t] for t in topics_in}

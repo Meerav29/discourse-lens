@@ -1,33 +1,48 @@
 import asyncio
-import hashlib
 import io
 import json as json_lib
-import os
 import re
 import sqlite3
+import sys
 import time
 import uuid
 import zipfile
+from contextlib import asynccontextmanager
 from pathlib import Path
-from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from typing import Literal
+
+from fastapi import FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import asyncio
-import sys
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+
+from backend import pipeline
+from backend.config import settings
+from backend.db import RUNNING_STATUSES, connect, init_db
+from backend.embedding.store import drop_embeddings
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-load_dotenv()
 
-DB_PATH = os.getenv("DB_PATH", "./data/discourse.db")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    yield
+    pipeline.cancel_all()
 
-app = FastAPI(title="Discourse Lens API")
+
+app = FastAPI(
+    title="Discourse Lens API",
+    lifespan=lifespan,
+    # Operation ids = route function names, so the generated client reads
+    # listAnalyses() rather than listAnalysesApiAnalysesGet().
+    generate_unique_id_function=lambda route: route.name,
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,50 +50,193 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
-# DB helpers
+# Models
 # ---------------------------------------------------------------------------
 
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+AnalysisStatus = Literal[
+    "queued", "crawling", "reviewing", "processing", "embedding", "projecting", "done", "error",
+    "cancelled",
+]
 
 
-def init_db() -> None:
-    schema = (Path(__file__).parent.parent / "db" / "schema.sql").read_text()
-    conn = get_db()
-    conn.executescript(schema)
-    try:
-        conn.execute("ALTER TABLE jobs ADD COLUMN warning TEXT")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass  # column already exists (pre-existing db file)
-    conn.commit()
-    conn.close()
+class AnalysisCreate(BaseModel):
+    topic: str = Field(min_length=1, max_length=500)
+    # Pause after searching so the user can edit queries and choose pages.
+    review: bool = False
 
 
-def update_job(job_id: str, **kwargs) -> None:
-    kwargs["updated_ts"] = int(time.time())
-    sets = ", ".join(f"{k}=?" for k in kwargs)
-    vals = list(kwargs.values()) + [job_id]
-    conn = get_db()
-    conn.execute(f"UPDATE jobs SET {sets} WHERE id=?", vals)
-    conn.commit()
-    conn.close()
+class PlanResult(BaseModel):
+    url: str
+    title: str
+    snippet: str
+    query: str
+
+
+class Plan(BaseModel):
+    """What a paused analysis found: its queries and the pages they returned."""
+
+    queries: list[str]
+    results: list[PlanResult]
+
+
+class PlanSearch(BaseModel):
+    queries: list[str] = Field(min_length=1, max_length=12)
+
+
+class PlanApprove(BaseModel):
+    urls: list[str] = Field(min_length=1)
+
+
+class Analysis(BaseModel):
+    id: str
+    topic: str
+    status: AnalysisStatus
+    progress: int
+    stage_detail: str | None
+    article_count: int
+    error_msg: str | None
+    warning: str | None
+    created_ts: int
+    updated_ts: int
+
+
+class AnalysisEvent(BaseModel):
+    id: int
+    ts: int
+    kind: Literal["stage", "query", "article", "skip", "cluster", "warning", "error"]
+    message: str
+    url: str | None
+
+
+class MapArticle(BaseModel):
+    """An article as placed on the map."""
+
+    article_id: str
+    url: str
+    title: str | None
+    domain: str | None
+    publish_date: str | None
+    word_count: int | None
+    x: float
+    y: float
+    cluster_id: int  # -1 = unclustered
+    distance: float  # cosine distance to its topic's centre: the outlier score
+
+
+class Term(BaseModel):
+    term: str
+    weight: float
+
+
+class Cluster(BaseModel):
+    cluster_id: int
+    label: str
+    description: str | None
+    article_count: int
+    terms: list[Term]
+
+
+class Article(BaseModel):
+    id: str
+    analysis_id: str
+    url: str
+    domain: str | None
+    title: str | None
+    publish_date: str | None
+    crawl_ts: int | None
+    word_count: int | None
+    language: str | None
+    raw_text: str | None
+    status: str
+    source_note: str | None = None  # set when the text came from an open-access copy
+
+
+class PropositionClaim(BaseModel):
+    claim_id: str
+    article_id: str
+    text: str
+    stance: Literal["agrees", "qualifies", "disputes"]
+
+
+class Proposition(BaseModel):
+    id: int
+    statement: str
+    claims: list[PropositionClaim]
+
+
+class Claims(BaseModel):
+    """Where the articles agree and disagree. status is null until claims are first found."""
+
+    status: Literal["running", "done", "error"] | None
+    detail: str | None
+    claim_count: int
+    propositions: list[Proposition]
+
+
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+class ChatSource(BaseModel):
+    """An excerpt the answer could cite as [n]."""
+
+    n: int
+    article_id: str
+    url: str
+    title: str
+    domain: str
+    publish_date: str | None
+    cited: bool | None = None  # set once the answer is complete
+
+
+class ChatMessage(BaseModel):
+    id: int
+    role: Literal["user", "assistant"]
+    text: str
+    sources: list[ChatSource] | None
+    created_ts: int
 
 
 # ---------------------------------------------------------------------------
-# Startup
+# Helpers
 # ---------------------------------------------------------------------------
 
-@app.on_event("startup")
-async def startup() -> None:
-    Path("data").mkdir(exist_ok=True)
-    init_db()
+def _get_analysis(conn: sqlite3.Connection, analysis_id: str) -> sqlite3.Row:
+    row = conn.execute("SELECT * FROM analyses WHERE id=?", (analysis_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return row
+
+
+def fetch_events(conn: sqlite3.Connection, analysis_id: str, after: int = 0) -> list[AnalysisEvent]:
+    rows = conn.execute(
+        "SELECT id, ts, kind, message, url FROM analysis_events "
+        "WHERE analysis_id = ? AND id > ? ORDER BY id",
+        (analysis_id, after),
+    ).fetchall()
+    return [AnalysisEvent(**dict(r)) for r in rows]
+
+
+def fetch_clusters(conn: sqlite3.Connection, analysis_id: str) -> list[Cluster]:
+    rows = conn.execute(
+        "SELECT cluster_id, label, description, article_count, terms FROM clusters "
+        "WHERE analysis_id = ? ORDER BY cluster_id",
+        (analysis_id,),
+    ).fetchall()
+    return [
+        Cluster(
+            cluster_id=r["cluster_id"],
+            label=r["label"],
+            description=r["description"],
+            article_count=r["article_count"],
+            terms=[Term(term=t, weight=w) for t, w in json_lib.loads(r["terms"])],
+        )
+        for r in rows
+    ]
 
 
 # ---------------------------------------------------------------------------
-# Endpoints
+# Analyses
 # ---------------------------------------------------------------------------
 
 @app.get("/api/health")
@@ -86,194 +244,406 @@ def health():
     return {"status": "ok"}
 
 
-class JobRequest(BaseModel):
-    topic: str
-
-
-@app.post("/api/jobs")
-def create_job(req: JobRequest, background_tasks: BackgroundTasks):
-    job_id = str(uuid.uuid4())
+@app.post("/api/analyses", status_code=201)
+async def create_analysis(req: AnalysisCreate) -> Analysis:
+    analysis_id = str(uuid.uuid4())
     now = int(time.time())
-    conn = get_db()
-    conn.execute(
-        "INSERT INTO jobs (id, topic, status, progress, created_ts, updated_ts) VALUES (?,?,?,?,?,?)",
-        (job_id, req.topic, "queued", 0, now, now),
-    )
-    conn.commit()
-    conn.close()
-    background_tasks.add_task(run_pipeline, job_id, req.topic)
-    return {"job_id": job_id}
-
-
-@app.get("/api/corpus")
-def get_corpus():
-    conn = get_db()
+    topic = req.topic.strip()
+    conn = connect()
     try:
+        conn.execute(
+            "INSERT INTO analyses (id, topic, status, progress, created_ts, updated_ts) "
+            "VALUES (?,?,?,?,?,?)",
+            (analysis_id, topic, "queued", 0, now, now),
+        )
+        conn.commit()
+        row = _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    pipeline.start(analysis_id, topic, review=req.review)
+    return Analysis(**dict(row))
+
+
+@app.get("/api/analyses")
+def list_analyses() -> list[Analysis]:
+    conn = connect()
+    try:
+        rows = conn.execute("SELECT * FROM analyses ORDER BY created_ts DESC").fetchall()
+    finally:
+        conn.close()
+    return [Analysis(**dict(r)) for r in rows]
+
+
+@app.get("/api/analyses/{analysis_id}")
+def get_analysis(analysis_id: str) -> Analysis:
+    conn = connect()
+    try:
+        return Analysis(**dict(_get_analysis(conn, analysis_id)))
+    finally:
+        conn.close()
+
+
+@app.delete("/api/analyses/{analysis_id}", status_code=204)
+def delete_analysis(analysis_id: str) -> Response:
+    conn = connect()
+    try:
+        row = _get_analysis(conn, analysis_id)
+        if row["status"] in RUNNING_STATUSES:
+            raise HTTPException(status_code=409, detail="Analysis is still running")
+        conn.execute("DELETE FROM analyses WHERE id=?", (analysis_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    drop_embeddings(analysis_id)
+    return Response(status_code=204)
+
+
+@app.post("/api/analyses/{analysis_id}/cancel", status_code=202)
+def cancel_analysis(analysis_id: str) -> Analysis:
+    """Ask a running analysis to stop; it reaches status 'cancelled' shortly after."""
+    conn = connect()
+    try:
+        row = _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    if row["status"] not in RUNNING_STATUSES or not pipeline.cancel(analysis_id):
+        raise HTTPException(status_code=409, detail="Analysis is not running")
+    return Analysis(**dict(row))
+
+
+def _awaiting_review(analysis_id: str) -> pipeline.RunContext:
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    ctx = pipeline.context(analysis_id)
+    if ctx is None or not ctx.awaiting_review():
+        raise HTTPException(status_code=409, detail="This analysis isn't waiting for review")
+    return ctx
+
+
+@app.get("/api/analyses/{analysis_id}/plan")
+def get_plan(analysis_id: str) -> Plan:
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    plan = pipeline.load_plan(analysis_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="This analysis has no search plan")
+    return Plan(**plan)
+
+
+@app.post("/api/analyses/{analysis_id}/plan/search")
+def search_plan(analysis_id: str, req: PlanSearch) -> Plan:
+    """Run edited queries again while the analysis waits for review."""
+    from backend.ingestion.search import search_all
+
+    _awaiting_review(analysis_id)
+    queries = [q.strip() for q in req.queries if q.strip()]
+    if not queries:
+        raise HTTPException(status_code=422, detail="Give at least one search query")
+    results = search_all(queries)
+    plan = pipeline.save_plan(analysis_id, queries, results)
+    from backend.db import add_event, update_analysis
+
+    update_analysis(analysis_id, stage_detail=f"Waiting for you to review {len(results)} pages")
+    add_event(analysis_id, "stage", f"Searched again: {len(results)} pages")
+    return Plan(**plan)
+
+
+@app.post("/api/analyses/{analysis_id}/plan/approve", status_code=202)
+def approve_plan(analysis_id: str, req: PlanApprove) -> Analysis:
+    """Continue the paused analysis with the chosen pages (search results or your own URLs)."""
+    from urllib.parse import urlparse
+
+    ctx = _awaiting_review(analysis_id)
+    urls = list(dict.fromkeys(u.strip() for u in req.urls if u.strip()))
+    bad = [u for u in urls if urlparse(u).scheme not in ("http", "https") or not urlparse(u).netloc]
+    if bad:
+        raise HTTPException(status_code=422, detail=f"Not a web address: {bad[0]}")
+    if len(urls) > settings.max_articles:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Choose at most {settings.max_articles} pages (you chose {len(urls)})",
+        )
+    ctx.approve(urls)
+    conn = connect()
+    try:
+        return Analysis(**dict(_get_analysis(conn, analysis_id)))
+    finally:
+        conn.close()
+
+
+@app.get("/api/analyses/{analysis_id}/events")
+def get_events(analysis_id: str, after: int = 0) -> list[AnalysisEvent]:
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+        return fetch_events(conn, analysis_id, after)
+    finally:
+        conn.close()
+
+
+STREAM_POLL_SECONDS = 0.5
+
+
+@app.get("/api/analyses/{analysis_id}/stream")
+async def stream_analysis(analysis_id: str, last_event_id: int = Header(0)):
+    """
+    Server-sent events until the analysis stops running:
+      default `message` events — the Analysis row, whenever it changes
+      `log` events (with `id:`) — new rows from the event log; EventSource
+      resends Last-Event-ID on reconnect, so the log resumes where it left off.
+    """
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+
+    async def event_generator():
+        last_payload = None
+        last_id = last_event_id
+        while True:
+            conn = connect()
+            try:
+                row = conn.execute("SELECT * FROM analyses WHERE id=?", (analysis_id,)).fetchone()
+                events = fetch_events(conn, analysis_id, last_id) if row else []
+            finally:
+                conn.close()
+
+            if row is None:  # deleted while streaming
+                yield f"event: error\ndata: {json_lib.dumps({'detail': 'Analysis not found'})}\n\n"
+                return
+
+            for ev in events:
+                yield f"event: log\nid: {ev.id}\ndata: {ev.model_dump_json()}\n\n"
+                last_id = ev.id
+
+            payload = Analysis(**dict(row)).model_dump_json()
+            if payload != last_payload:
+                yield f"data: {payload}\n\n"
+                last_payload = payload
+
+            if row["status"] not in RUNNING_STATUSES:
+                return
+
+            await asyncio.sleep(STREAM_POLL_SECONDS)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+# ---------------------------------------------------------------------------
+# Analysis data
+# ---------------------------------------------------------------------------
+
+@app.get("/api/analyses/{analysis_id}/articles")
+def list_articles(analysis_id: str) -> list[MapArticle]:
+    """Every article on the map, with its position, topic and outlier score."""
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
         rows = conn.execute(
             """
-            SELECT
-                p.chunk_id,
-                c.article_id,
-                c.child_text,
-                a.url,
-                a.title,
-                a.domain,
-                a.publish_date,
-                p.x,
-                p.y,
-                p.cluster_id,
-                p.cluster_label,
-                p.distance_from_centroid,
-                a.word_count
-            FROM projections p
-            JOIN chunks c ON c.id = p.chunk_id
-            JOIN articles a ON a.id = c.article_id
-            WHERE a.status = 'ok'
-            ORDER BY p.cluster_id, p.distance_from_centroid
-            """
+            SELECT p.article_id, a.url, a.title, a.domain, a.publish_date, a.word_count,
+                   p.x, p.y, p.cluster_id, p.distance
+            FROM placements p
+            JOIN articles a ON a.id = p.article_id
+            WHERE p.analysis_id = ?
+            ORDER BY p.cluster_id, p.distance
+            """,
+            (analysis_id,),
         ).fetchall()
     finally:
         conn.close()
-    return [dict(r) for r in rows]
+    return [MapArticle(**dict(r)) for r in rows]
 
 
-@app.get("/api/clusters")
-def get_clusters():
-    conn = get_db()
+@app.get("/api/analyses/{analysis_id}/clusters")
+def get_clusters(analysis_id: str) -> list[Cluster]:
+    """Topics, largest first, with their key terms. Unclustered articles have none."""
+    conn = connect()
     try:
-        rows = conn.execute(
-            """
-            SELECT p.cluster_id, p.cluster_label,
-                   COUNT(DISTINCT c.article_id) AS article_count
-            FROM projections p
-            JOIN chunks c ON c.id = p.chunk_id
-            GROUP BY p.cluster_id, p.cluster_label
-            ORDER BY p.cluster_id
-            """
-        ).fetchall()
+        _get_analysis(conn, analysis_id)
+        return fetch_clusters(conn, analysis_id)
     finally:
         conn.close()
-    return [dict(r) for r in rows]
 
 
-@app.get("/api/outliers")
-def get_outliers(cluster_id: int | None = None):
-    conn = get_db()
-    try:
-        if cluster_id is not None:
-            rows = conn.execute(
-                """
-                SELECT p.chunk_id, p.cluster_id, p.cluster_label,
-                       p.distance_from_centroid,
-                       c.article_id, a.title, a.domain, a.publish_date
-                FROM projections p
-                JOIN chunks c ON c.id = p.chunk_id
-                JOIN articles a ON a.id = c.article_id
-                WHERE a.status = 'ok' AND p.cluster_id = ?
-                ORDER BY p.distance_from_centroid DESC
-                LIMIT 50
-                """,
-                (cluster_id,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT p.chunk_id, p.cluster_id, p.cluster_label,
-                       p.distance_from_centroid,
-                       c.article_id, a.title, a.domain, a.publish_date
-                FROM projections p
-                JOIN chunks c ON c.id = p.chunk_id
-                JOIN articles a ON a.id = c.article_id
-                WHERE a.status = 'ok'
-                ORDER BY p.distance_from_centroid DESC
-                LIMIT 50
-                """
-            ).fetchall()
-    finally:
-        conn.close()
-    return [dict(r) for r in rows]
-
-
-@app.get("/api/articles/{article_id}")
-def get_article(article_id: str):
-    conn = get_db()
+@app.get("/api/analyses/{analysis_id}/articles/{article_id}")
+def get_article(analysis_id: str, article_id: str) -> Article:
+    conn = connect()
     try:
         row = conn.execute(
-            "SELECT * FROM articles WHERE id = ?", (article_id,)
+            "SELECT * FROM articles WHERE id = ? AND analysis_id = ?", (article_id, analysis_id)
         ).fetchone()
     finally:
         conn.close()
     if row is None:
-        raise HTTPException(status_code=404, detail={"error": "Article not found"})
-    return dict(row)
+        raise HTTPException(status_code=404, detail="Article not found")
+    return Article(**dict(row))
 
 
-class ChatRequest(BaseModel):
-    query: str
+def _claims(analysis_id: str) -> Claims:
+    from backend.synthesis import claims
+
+    conn = connect()
+    try:
+        row = _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    return Claims(
+        status=row["claims_status"],
+        detail=row["claims_detail"],
+        claim_count=claims.claim_count(analysis_id),
+        propositions=[Proposition(**p) for p in claims.load(analysis_id)],
+    )
 
 
-@app.post("/api/chat")
-def chat(req: ChatRequest):
-    from backend.synthesis.rag import query_corpus
-    return query_corpus(req.query)
+@app.get("/api/analyses/{analysis_id}/claims")
+def get_claims(analysis_id: str) -> Claims:
+    return _claims(analysis_id)
 
 
-@app.get("/api/export")
-def export_obsidian():
-    from fastapi.responses import StreamingResponse
+@app.post("/api/analyses/{analysis_id}/claims", status_code=202)
+def find_claims(analysis_id: str) -> Claims:
+    """Find each article's claims and where they agree or disagree (Claude requests)."""
+    from backend.synthesis import claims
+
+    conn = connect()
+    try:
+        row = _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    if row["status"] != "done":
+        raise HTTPException(status_code=409, detail="Finish the map before finding claims")
+    try:
+        claims.start(analysis_id)
+    except claims.AlreadyRunning:
+        raise HTTPException(status_code=409, detail="Already finding claims") from None
+    return _claims(analysis_id)
+
+
+@app.get("/api/analyses/{analysis_id}/chat")
+def get_chat(analysis_id: str) -> list[ChatMessage]:
+    """The saved conversation for this analysis, oldest first."""
+    from backend.synthesis.chat import load_history
+
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    return [ChatMessage(**m) for m in load_history(analysis_id)]
+
+
+@app.delete("/api/analyses/{analysis_id}/chat", status_code=204)
+def clear_chat(analysis_id: str) -> Response:
+    from backend.synthesis.chat import clear_history
+
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+    clear_history(analysis_id)
+    return Response(status_code=204)
+
+
+def _sse(event: str, data: object) -> str:
+    return f"event: {event}\ndata: {json_lib.dumps(data)}\n\n"
+
+
+@app.post(
+    "/api/analyses/{analysis_id}/chat",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}}},
+)
+def ask(analysis_id: str, req: ChatRequest):
+    """
+    Ask a question; the answer streams as server-sent events:
+      sources — the numbered excerpts the answer may cite (ChatSource[])
+      delta   — {"text": ...}, a piece of the answer as it's written
+      done    — the saved answer (ChatMessage), with each source's `cited` set
+      error   — {"detail": ...}; nothing is saved
+    The question and answer are saved together only when the answer completes.
+    """
+    from dataclasses import asdict
+
+    from backend.synthesis.chat import NoCorpusError, answer_stream, load_history, save_turn
+
+    conn = connect()
+    try:
+        _get_analysis(conn, analysis_id)
+    finally:
+        conn.close()
+
+    question = req.question.strip()
+    history = load_history(analysis_id)
+    try:
+        sources, text_stream = answer_stream(analysis_id, question, history)
+    except NoCorpusError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't search the corpus: {e}") from e
+
+    def events():
+        yield _sse("sources", [{k: v for k, v in asdict(s).items() if k != "excerpt"}
+                               for s in sources])
+        parts: list[str] = []
+        try:
+            for piece in text_stream:
+                parts.append(piece)
+                yield _sse("delta", {"text": piece})
+        except Exception as e:
+            yield _sse("error", {"detail": f"The answer stopped early: {e}"})
+            return
+        message = save_turn(analysis_id, question, "".join(parts).strip(), sources)
+        yield _sse("done", message)
+
+    return StreamingResponse(events(), media_type="text/event-stream")
+
+
+@app.get("/api/analyses/{analysis_id}/export")
+def export_obsidian(analysis_id: str):
     from backend.export import build_canvas, build_vault_files
 
-    conn = get_db()
+    conn = connect()
     try:
-        job_row = conn.execute(
-            "SELECT topic FROM jobs WHERE status='done' ORDER BY updated_ts DESC LIMIT 1"
-        ).fetchone()
-        topic = job_row["topic"] if job_row else "discourse"
-
+        topic = _get_analysis(conn, analysis_id)["topic"]
         rows = conn.execute(
             """
-            SELECT
-                a.id AS article_id, a.title, a.url, a.domain,
-                a.publish_date, a.word_count,
-                AVG(p.x) AS x, AVG(p.y) AS y,
-                MIN(p.cluster_id) AS cluster_id,
-                MIN(p.cluster_label) AS cluster_label
-            FROM projections p
-            JOIN chunks c ON c.id = p.chunk_id
-            JOIN articles a ON a.id = c.article_id
-            WHERE a.status = 'ok'
-            GROUP BY a.id, a.title, a.url, a.domain, a.publish_date, a.word_count
-            ORDER BY MIN(p.cluster_id)
-            """
+            SELECT a.id AS article_id, a.title, a.url, a.domain, a.publish_date,
+                   a.word_count, p.x, p.y, p.cluster_id,
+                   COALESCE(c.label, 'Unclustered') AS cluster_label
+            FROM placements p
+            JOIN articles a ON a.id = p.article_id
+            LEFT JOIN clusters c
+              ON c.analysis_id = p.analysis_id AND c.cluster_id = p.cluster_id
+            WHERE p.analysis_id = ?
+            ORDER BY p.cluster_id < 0, p.cluster_id
+            """,
+            (analysis_id,),
         ).fetchall()
         rows = [dict(r) for r in rows]
 
-        clusters = conn.execute(
-            """
-            SELECT p.cluster_label, COUNT(DISTINCT c.article_id) AS article_count
-            FROM projections p
-            JOIN chunks c ON c.id = p.chunk_id
-            JOIN articles a ON a.id = c.article_id
-            WHERE a.status = 'ok'
-            GROUP BY p.cluster_label
-            ORDER BY MIN(p.cluster_id)
-            """
-        ).fetchall()
-        clusters = [dict(r) for r in clusters]
+        counts: dict[str, int] = {}
+        for r in rows:
+            counts[r["cluster_label"]] = counts.get(r["cluster_label"], 0) + 1
+        clusters = [{"cluster_label": k, "article_count": n} for k, n in counts.items()]
     finally:
         conn.close()
 
     if not rows:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "No corpus found. Run an analysis first."},
-        )
+        raise HTTPException(status_code=404, detail="This analysis has no corpus to export.")
 
     canvas = build_canvas(rows)
     vault_files = build_vault_files(rows, clusters, topic)
 
     slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")[:40]
-    zip_name = f"discourse-{slug}.zip"
     folder = f"discourse-{slug}"
 
     buf = io.BytesIO()
@@ -289,232 +659,15 @@ def export_obsidian():
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{zip_name}"'},
+        headers={"Content-Disposition": f'attachment; filename="{folder}.zip"'},
     )
 
 
-@app.get("/api/jobs/{job_id}")
-def get_job(job_id: str):
-    conn = get_db()
-    row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
-    conn.close()
-    if row is None:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Job not found", "code": "NOT_FOUND"},
-        )
-    return dict(row)
-
-
-@app.get("/api/jobs/{job_id}/stream")
-async def stream_job(job_id: str):
-    from fastapi.responses import StreamingResponse
-
-    async def event_generator():
-        last_payload = None
-        while True:
-            conn = get_db()
-            row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
-            conn.close()
-
-            if row is None:
-                yield f"event: error\ndata: {json_lib.dumps({'error': 'Job not found', 'code': 'NOT_FOUND'})}\n\n"
-                return
-
-            payload = json_lib.dumps(dict(row))
-            if payload != last_payload:
-                yield f"data: {payload}\n\n"
-                last_payload = payload
-
-            if row["status"] in ("done", "error"):
-                return
-
-            await asyncio.sleep(1)
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
 # ---------------------------------------------------------------------------
-# Ingestion pipeline (background task)
+# Frontend (registered last so it never shadows an API route)
 # ---------------------------------------------------------------------------
 
-async def run_pipeline(job_id: str, topic: str) -> None:
-    """Full ingestion + processing pipeline: search → crawl → extract → chunk → dedup."""
-    from backend.ingestion.search import collect_urls
-    from backend.ingestion.crawler import crawl_urls
-    from backend.ingestion.extractor import extract_article
-    from backend.processing.metadata import extract_publish_date
-    from backend.processing.chunker import chunk_article
-    from backend.processing.dedup import mark_duplicates
+if (Path(settings.frontend_build)).is_dir():
+    from backend.api.spa import spa_router
 
-    try:
-        # Clear previous corpus before starting fresh
-        conn = get_db()
-        conn.execute("DELETE FROM projections")
-        conn.execute("DELETE FROM chunks")
-        conn.execute("DELETE FROM articles")
-        conn.commit()
-        conn.close()
-        from backend.embedding.store import clear_embeddings
-        clear_embeddings()
-
-        # Step 1: generate queries and search Brave
-        update_job(job_id, status="crawling", progress=5)
-        urls = await asyncio.to_thread(collect_urls, topic)
-
-        # Step 2: Playwright scrape all URLs — runs in a thread with a fresh event loop
-        update_job(job_id, progress=20)
-        crawled = await asyncio.to_thread(crawl_urls, urls)
-
-        # Step 3: extract clean text, filter, persist to SQLite
-        update_job(job_id, status="processing", progress=60)
-
-        def _extract_and_store() -> tuple[int, list[dict]]:
-            ok_count = 0
-            ok_articles: list[dict] = []
-            conn = sqlite3.connect(DB_PATH)
-            try:
-                for item in crawled:
-                    url = item["url"]
-                    html = item["html"]
-                    try:
-                        article = extract_article(url, html)
-                        if article is None:
-                            aid = hashlib.sha256(url.encode()).hexdigest()[:16]
-                            conn.execute(
-                                "INSERT OR IGNORE INTO articles "
-                                "(id, url, status, crawl_ts) VALUES (?,?,?,?)",
-                                (aid, url, "filtered", int(time.time())),
-                            )
-                            continue
-
-                        publish_date = extract_publish_date(html, url)
-                        conn.execute(
-                            "INSERT OR IGNORE INTO articles "
-                            "(id, url, domain, title, publish_date, crawl_ts, "
-                            " word_count, language, raw_text, status) "
-                            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-                            (
-                                article["id"], article["url"], article["domain"],
-                                article["title"], publish_date, article["crawl_ts"],
-                                article["word_count"], article["language"],
-                                article["raw_text"], "ok",
-                            ),
-                        )
-                        ok_count += 1
-                        ok_articles.append({"id": article["id"], "raw_text": article["raw_text"]})
-                    except Exception:
-                        continue  # individual failure — log and keep going
-                conn.commit()
-            finally:
-                conn.close()
-            return ok_count, ok_articles
-
-        ok_count, ok_articles = await asyncio.to_thread(_extract_and_store)
-
-        # Step 4: chunk + dedup all successfully extracted articles
-        update_job(job_id, progress=75)
-
-        def _chunk_and_dedup(articles: list[dict]) -> None:
-            conn = sqlite3.connect(DB_PATH)
-            try:
-                for art in articles:
-                    if not art.get("raw_text"):
-                        continue
-                    chunks = chunk_article(art["id"], art["raw_text"])
-                    chunks = mark_duplicates(chunks)
-                    conn.executemany(
-                        "INSERT OR IGNORE INTO chunks "
-                        "(id, article_id, parent_id, parent_text, child_text, "
-                        " chunk_index, token_count, is_duplicate) "
-                        "VALUES (:id, :article_id, :parent_id, :parent_text, :child_text, "
-                        " :chunk_index, :token_count, :is_duplicate)",
-                        chunks,
-                    )
-                conn.commit()
-            finally:
-                conn.close()
-
-        await asyncio.to_thread(_chunk_and_dedup, ok_articles)
-
-        # Step 5: embed non-duplicate child chunks
-        update_job(job_id, status="embedding", progress=80)
-
-        def _embed_and_store() -> None:
-            from backend.embedding.embed import embed_chunks
-            from backend.embedding.store import write_embeddings
-
-            conn = sqlite3.connect(DB_PATH)
-            conn.row_factory = sqlite3.Row
-            try:
-                rows = conn.execute(
-                    "SELECT c.id, c.child_text, c.article_id, "
-                    "       a.domain, a.publish_date "
-                    "FROM chunks c "
-                    "JOIN articles a ON a.id = c.article_id "
-                    "WHERE c.is_duplicate = 0"
-                ).fetchall()
-            finally:
-                conn.close()
-
-            if not rows:
-                return
-
-            chunks_for_embed = [
-                {
-                    "id": r["id"],
-                    "child_text": r["child_text"],
-                    "article_id": r["article_id"],
-                    "domain": r["domain"] or "",
-                    "publish_date": r["publish_date"] or "",
-                }
-                for r in rows
-            ]
-
-            embeddings = embed_chunks(chunks_for_embed)
-
-            # Build full rows for LanceDB (merge embed result with metadata)
-            meta_by_id = {c["id"]: c for c in chunks_for_embed}
-            lance_rows = []
-            for e in embeddings:
-                m = meta_by_id[e["chunk_id"]]
-                lance_rows.append(
-                    {
-                        "chunk_id": e["chunk_id"],
-                        "article_id": m["article_id"],
-                        "vector": e["vector"],
-                        "child_text": m["child_text"],
-                        "domain": m["domain"],
-                        "publish_date": m["publish_date"],
-                        "cluster_id": -1,
-                    }
-                )
-            write_embeddings(lance_rows)
-
-        await asyncio.to_thread(_embed_and_store)
-
-        # Step 6: UMAP + k-means + cluster labels → projections table
-        update_job(job_id, status="projecting", progress=90)
-
-        def _project() -> None:
-            from backend.embedding.project import run_projection
-            run_projection(db_path=DB_PATH)
-
-        await asyncio.to_thread(_project)
-
-        warning = None
-        if ok_count < 30:
-            warning = (
-                f"Only {ok_count} articles were successfully indexed. "
-                "Results may be sparse — try a broader or more general topic."
-            )
-
-        update_job(
-            job_id, status="done", progress=100,
-            article_count=ok_count, warning=warning,
-        )
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        update_job(job_id, status="error", error_msg=str(e))
+    app.include_router(spa_router(Path(settings.frontend_build)))

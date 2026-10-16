@@ -1,7 +1,29 @@
--- Articles: one row per crawled URL
+-- Schema version 8 (PRAGMA user_version = 8): every row belongs to an analysis.
+-- Deleting an analysis cascades to everything it collected
+-- (requires PRAGMA foreign_keys = ON, set by backend.db.connect).
+
+-- Analyses: one row per topic run (formerly "jobs")
+CREATE TABLE IF NOT EXISTS analyses (
+  id            TEXT PRIMARY KEY,   -- uuid4
+  topic         TEXT NOT NULL,
+  status        TEXT NOT NULL,      -- queued | crawling | reviewing | processing | embedding | projecting | done | error | cancelled
+  progress      INTEGER DEFAULT 0,  -- 0-100
+  stage_detail  TEXT,               -- e.g. "Crawled 47 of 112 pages"
+  plan          TEXT,               -- review step: JSON {queries, results[{url,title,snippet,query}]}
+  claims_status TEXT,               -- claim finding: NULL (never run) | running | done | error
+  claims_detail TEXT,               -- its progress, summary or error message
+  article_count INTEGER DEFAULT 0,
+  error_msg     TEXT,
+  warning       TEXT,               -- non-fatal warning, e.g. low article yield
+  created_ts    INTEGER NOT NULL,
+  updated_ts    INTEGER NOT NULL
+);
+
+-- Articles: one row per crawled URL per analysis
 CREATE TABLE IF NOT EXISTS articles (
-  id           TEXT PRIMARY KEY,   -- sha256(url)[:16]
-  url          TEXT NOT NULL UNIQUE,
+  id           TEXT PRIMARY KEY,   -- sha256(analysis_id:url)[:16]
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  url          TEXT NOT NULL,
   domain       TEXT,
   title        TEXT,
   publish_date TEXT,               -- ISO date string, nullable
@@ -9,13 +31,17 @@ CREATE TABLE IF NOT EXISTS articles (
   word_count   INTEGER,
   language     TEXT DEFAULT 'en',
   raw_text     TEXT,
-  status       TEXT DEFAULT 'ok'   -- ok | filtered | error
+  status       TEXT DEFAULT 'ok',  -- ok | filtered | duplicate | error
+  source_note  TEXT,               -- where recovered text came from, e.g. "Full text from Europe PMC"
+  UNIQUE (analysis_id, url)
 );
+CREATE INDEX IF NOT EXISTS idx_articles_analysis ON articles(analysis_id);
 
 -- Chunks: one row per child chunk
 CREATE TABLE IF NOT EXISTS chunks (
   id           TEXT PRIMARY KEY,   -- {article_id}#p{i}c{j}
-  article_id   TEXT REFERENCES articles(id),
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  article_id   TEXT REFERENCES articles(id) ON DELETE CASCADE,
   parent_id    TEXT,               -- {article_id}#p{i}
   parent_text  TEXT,               -- full parent chunk text (for RAG context)
   child_text   TEXT,
@@ -23,26 +49,76 @@ CREATE TABLE IF NOT EXISTS chunks (
   token_count  INTEGER,
   is_duplicate INTEGER DEFAULT 0
 );
+CREATE INDEX IF NOT EXISTS idx_chunks_analysis ON chunks(analysis_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_article ON chunks(article_id);
 
--- Projections: 2D UMAP coords + cluster info per chunk
-CREATE TABLE IF NOT EXISTS projections (
-  chunk_id                TEXT PRIMARY KEY REFERENCES chunks(id),
-  x                       REAL,
-  y                       REAL,
-  cluster_id              INTEGER,
-  cluster_label           TEXT,    -- LLM-generated 2-3 word label
-  distance_from_centroid  REAL
+-- Clusters: one row per topic found in an analysis (cluster_id -1 = unclustered,
+-- which has no row here)
+CREATE TABLE IF NOT EXISTS clusters (
+  analysis_id    TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  cluster_id     INTEGER NOT NULL,   -- 0 = largest
+  label          TEXT NOT NULL,      -- short name from Claude
+  description    TEXT,               -- one sentence from Claude
+  article_count  INTEGER NOT NULL,
+  terms          TEXT NOT NULL DEFAULT '[]',  -- JSON [[term, weight], ...] by c-TF-IDF
+  PRIMARY KEY (analysis_id, cluster_id)
 );
 
--- Jobs: track ingestion pipeline state
-CREATE TABLE IF NOT EXISTS jobs (
-  id            TEXT PRIMARY KEY,   -- uuid4
-  topic         TEXT,
-  status        TEXT,               -- queued | crawling | processing | embedding | projecting | done | error
-  progress      INTEGER DEFAULT 0,  -- 0-100
-  article_count INTEGER DEFAULT 0,
-  error_msg     TEXT,
-  warning       TEXT,               -- non-fatal warning, e.g. low article yield
-  created_ts    INTEGER,
-  updated_ts    INTEGER
+-- Placements: where each article sits on the map and which topic it belongs to
+CREATE TABLE IF NOT EXISTS placements (
+  article_id   TEXT PRIMARY KEY REFERENCES articles(id) ON DELETE CASCADE,
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  x            REAL NOT NULL,
+  y            REAL NOT NULL,
+  cluster_id   INTEGER NOT NULL,     -- -1 = unclustered
+  distance     REAL NOT NULL         -- cosine distance to its topic's centre (outlier score)
+);
+CREATE INDEX IF NOT EXISTS idx_placements_analysis ON placements(analysis_id);
+
+-- Live log of what a pipeline run is doing; streamed to the UI over SSE.
+CREATE TABLE IF NOT EXISTS analysis_events (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  ts           INTEGER NOT NULL,
+  kind         TEXT NOT NULL,      -- stage | query | article | skip | cluster | warning | error
+  message      TEXT NOT NULL,
+  url          TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_events_analysis ON analysis_events(analysis_id, id);
+
+-- Ask: saved conversation per analysis (a turn is stored once its answer completes)
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  role         TEXT NOT NULL,      -- user | assistant
+  text         TEXT NOT NULL,
+  sources      TEXT,               -- assistant only: JSON [{n, article_id, url, title, domain, publish_date, cited}]
+  created_ts   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_analysis ON chat_messages(analysis_id, id);
+
+-- Claims: what each article argues or reports (found on demand by Claude)
+CREATE TABLE IF NOT EXISTS claims (
+  id           TEXT PRIMARY KEY,   -- {article_id}:{position}
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  article_id   TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL,
+  text         TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_claims_analysis ON claims(analysis_id);
+
+-- Propositions: points two or more articles take a position on
+CREATE TABLE IF NOT EXISTS propositions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  analysis_id  TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL,   -- 0 = most important
+  statement    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_propositions_analysis ON propositions(analysis_id);
+
+CREATE TABLE IF NOT EXISTS proposition_claims (
+  proposition_id INTEGER NOT NULL REFERENCES propositions(id) ON DELETE CASCADE,
+  claim_id       TEXT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+  stance         TEXT NOT NULL,    -- agrees | qualifies | disputes
+  PRIMARY KEY (proposition_id, claim_id)
 );
