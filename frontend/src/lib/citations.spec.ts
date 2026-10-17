@@ -25,7 +25,15 @@ describe('linkCitations', () => {
 	it('leaves markdown links untouched', () => {
 		const text = 'See [the report](https://x.test) [2].';
 		expect(linkCitations(text, sources)).toMatch(
-			/^See \[the report\]\(https:\/\/x\.test\) <button/
+			/^See \[the report\]\(https:\/\/x\.test\) <span class="cite-group"><button/
 		);
+	});
+
+	it('keeps the punctuation after a citation on its line', () => {
+		const html = linkCitations('Lifespan is capped [1][2]. Others disagree [3]', sources);
+		expect(html).toMatch(
+			/<span class="cite-group">(<button[^>]*>\d<\/button>){2}\.<\/span> Others/
+		);
+		expect(html).toMatch(/<button[^>]*>3<\/button><\/span>$/);
 	});
 });

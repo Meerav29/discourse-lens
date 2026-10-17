@@ -56,3 +56,9 @@ def test_search_all_dedupes_and_survives_failed_queries(monkeypatch):
     assert [r.url for r in results] == ["https://x.test/1", "https://x.test/2"]
     assert [r.query for r in results] == ["one", "one"]
     assert progress == [("one", 2), ("broken", None), ("two", 0)]
+
+
+def test_titles_and_snippets_become_plain_text():
+    assert search.plain("Labor leaders&#x27; <strong>four-day</strong>  week") == (
+        "Labor leaders' four-day week")
+    assert search.plain(None) == ""

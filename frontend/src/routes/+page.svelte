@@ -88,7 +88,8 @@
 			<h1 class="text-[2.6rem] leading-[1.05] display sm:text-[3.6rem]">Map a conversation.</h1>
 			<p class="mt-5 max-w-[34rem] text-[1.075rem] text-ink-2">
 				Enter a topic. Discourse Lens reads around a hundred articles about it and charts the camps,
-				the outliers and how the conversation has moved. A map takes 3 to 8 minutes.
+				where they agree and disagree, and how the conversation has moved. A map takes 3 to 8
+				minutes.
 			</p>
 
 			<form class="mt-9 flex flex-col gap-3 sm:flex-row" onsubmit={start}>

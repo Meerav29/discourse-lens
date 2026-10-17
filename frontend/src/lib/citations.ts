@@ -5,7 +5,9 @@
  * Pure string functions so they're unit-tested without a DOM.
  */
 
-const CITATION = /\[(\d+(?:\s*[,–-]\s*\d+)*)\]/g;
+const MARKER = /\[(\d+(?:\s*[,–-]\s*\d+)*)\]/g;
+// A run of markers ([1][3]) plus any punctuation right after it: kept on one line.
+const RUN = /(?:\[\d+(?:\s*[,–-]\s*\d+)*\])+[.,;:!?)]*/g;
 
 export interface CitableSource {
 	n: number;
@@ -24,18 +26,27 @@ function numbersIn(group: string): number[] {
 	});
 }
 
-/** Replace citation markers with buttons; markers naming no known source stay as text. */
+/**
+ * Replace citation markers with buttons; markers naming no known source stay
+ * as text. Buttons and the punctuation after them share a no-wrap span, so a
+ * line never starts with the full stop that ends a cited sentence.
+ */
 export function linkCitations(markdown: string, sources: CitableSource[]): string {
 	const byN = new Map(sources.map((s) => [s.n, s]));
-	return markdown.replace(CITATION, (match, group: string) => {
-		const ns = numbersIn(group);
-		if (!ns.length || !ns.every((n) => byN.has(n))) return match;
-		return ns
-			.map((n) => {
-				const s = byN.get(n)!;
-				const label = escapeAttr(`${s.title} (${s.domain})`);
-				return `<button type="button" class="cite" data-cite="${n}" title="${label}" aria-label="Source ${n}: ${label}">${n}</button>`;
-			})
-			.join('');
+	return markdown.replace(RUN, (run) => {
+		let linked = false;
+		const html = run.replace(MARKER, (match, group: string) => {
+			const ns = numbersIn(group);
+			if (!ns.length || !ns.every((n) => byN.has(n))) return match;
+			linked = true;
+			return ns
+				.map((n) => {
+					const s = byN.get(n)!;
+					const label = escapeAttr(`${s.title} (${s.domain})`);
+					return `<button type="button" class="cite" data-cite="${n}" title="${label}" aria-label="Source ${n}: ${label}">${n}</button>`;
+				})
+				.join('');
+		});
+		return linked ? `<span class="cite-group">${html}</span>` : run;
 	});
 }
