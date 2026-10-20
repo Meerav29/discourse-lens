@@ -1,0 +1,1255 @@
+{
+ "_note": "Exported 2026-10-20 from a finished discourse-lens map (the app, not the skill). Metadata, topic labels, 2D placements and extracted claims only; no article text. Reference output for the skill prototype to reproduce or beat. Only articles placed on the map are included.",
+ "topic": "jevons paradox and energy efficiency",
+ "article_count": 52,
+ "clusters": [
+  {
+   "cluster_id": 0,
+   "label": "Jevons paradox explained",
+   "description": "General explainers and policy-oriented analyses of how efficiency gains can raise total resource consumption, with historical context and implications for sustainability and economic growth.",
+   "article_count": 19,
+   "terms": [
+    [
+     "jevons",
+     0.026721
+    ],
+    [
+     "paradox",
+     0.023089
+    ],
+    [
+     "technological",
+     0.008423
+    ],
+    [
+     "policy",
+     0.00673
+    ],
+    [
+     "global",
+     0.006279
+    ],
+    [
+     "implications",
+     0.005539
+    ],
+    [
+     "analysis",
+     0.004811
+    ],
+    [
+     "resource consumption",
+     0.004627
+    ],
+    [
+     "scale",
+     0.004582
+    ],
+    [
+     "economic growth",
+     0.004506
+    ]
+   ]
+  },
+  {
+   "cluster_id": 1,
+   "label": "Rebound effect economics",
+   "description": "Articles defining direct and indirect rebound effects and weighing the evidence on how much efficiency savings are eroded by behavior and economic responses.",
+   "article_count": 8,
+   "terms": [
+    [
+     "policy",
+     0.020102
+    ],
+    [
+     "jevons",
+     0.01417
+    ],
+    [
+     "economic growth",
+     0.01188
+    ],
+    [
+     "paradox",
+     0.01166
+    ],
+    [
+     "direct",
+     0.011203
+    ],
+    [
+     "ecological",
+     0.010082
+    ],
+    [
+     "technological",
+     0.009803
+    ],
+    [
+     "energy economics",
+     0.009491
+    ],
+    [
+     "evidence",
+     0.009472
+    ],
+    [
+     "energy use",
+     0.009159
+    ]
+   ]
+  },
+  {
+   "cluster_id": 2,
+   "label": "Efficiency as climate strategy",
+   "description": "Institutional reports from agencies and think tanks arguing efficiency is the fastest, cheapest route to decarbonization, alongside renewables and electrification.",
+   "article_count": 8,
+   "terms": [
+    [
+     "global",
+     0.016909
+    ],
+    [
+     "measures",
+     0.013467
+    ],
+    [
+     "renewables",
+     0.012177
+    ],
+    [
+     "intensity",
+     0.010575
+    ],
+    [
+     "year",
+     0.009971
+    ],
+    [
+     "heat",
+     0.009829
+    ],
+    [
+     "electricity",
+     0.009702
+    ],
+    [
+     "electrification",
+     0.009235
+    ],
+    [
+     "climate",
+     0.009036
+    ],
+    [
+     "zero",
+     0.00876
+    ]
+   ]
+  },
+  {
+   "cluster_id": 3,
+   "label": "Consumer efficiency basics",
+   "description": "Introductory guides defining energy efficiency and offering practical advice, standards, and Energy Star-type tips for saving energy and money in homes and buildings.",
+   "article_count": 6,
+   "terms": [
+    [
+     "information",
+     0.017699
+    ],
+    [
+     "heat",
+     0.014934
+    ],
+    [
+     "electric",
+     0.013716
+    ],
+    [
+     "reducing",
+     0.012799
+    ],
+    [
+     "improving",
+     0.011855
+    ],
+    [
+     "energy star",
+     0.011204
+    ],
+    [
+     "water",
+     0.010186
+    ],
+    [
+     "energy use",
+     0.010059
+    ],
+    [
+     "standards",
+     0.009571
+    ],
+    [
+     "save",
+     0.009507
+    ]
+   ]
+  },
+  {
+   "cluster_id": 4,
+   "label": "Jevons and AI economics",
+   "description": "Pieces prompted by DeepSeek arguing cheaper computing and AI will increase demand, drawing on historical technology examples to explain why efficiency spurs usage.",
+   "article_count": 4,
+   "terms": [
+    [
+     "jevons",
+     0.050166
+    ],
+    [
+     "paradox",
+     0.036998
+    ],
+    [
+     "computing",
+     0.028515
+    ],
+    [
+     "occupations",
+     0.017329
+    ],
+    [
+     "applications",
+     0.014354
+    ],
+    [
+     "processing",
+     0.013617
+    ],
+    [
+     "brynjolfsson",
+     0.011857
+    ],
+    [
+     "food",
+     0.011754
+    ],
+    [
+     "technological",
+     0.010625
+    ],
+    [
+     "increased demand",
+     0.010569
+    ]
+   ]
+  },
+  {
+   "cluster_id": 5,
+   "label": "AI's environmental footprint",
+   "description": "Critical takes questioning whether Jevons paradox applies to AI, examining data centers, hardware, energy and water use, and the polarized environmental debate.",
+   "article_count": 3,
+   "terms": [
+    [
+     "hardware",
+     0.008646
+    ],
+    [
+     "direct",
+     0.008619
+    ],
+    [
+     "jevons",
+     0.008537
+    ],
+    [
+     "paradox",
+     0.008043
+    ],
+    [
+     "data centers",
+     0.00782
+    ],
+    [
+     "model",
+     0.007271
+    ],
+    [
+     "usage",
+     0.00694
+    ],
+    [
+     "environment",
+     0.006918
+    ],
+    [
+     "google",
+     0.00647
+    ],
+    [
+     "companies",
+     0.006193
+    ]
+   ]
+  }
+ ],
+ "articles": [
+  {
+   "id": "e535e0dd2e09ab1b",
+   "url": "https://en.wikipedia.org/wiki/Jevons_paradox",
+   "domain": "en.wikipedia.org",
+   "title": "Jevons paradox - Wikipedia",
+   "publish_date": "2004-09-15",
+   "x": 0.2886904180049896,
+   "y": -10.501059532165527,
+   "cluster_id": 0
+  },
+  {
+   "id": "198efba2d31ed4c9",
+   "url": "https://news.northeastern.edu/2025/02/07/jevons-paradox-ai-future/",
+   "domain": "news.northeastern.edu",
+   "title": "What is Jevons Paradox? And why it may — or may not — predict AI’s future",
+   "publish_date": "2025-02-07",
+   "x": -3.1808125972747803,
+   "y": -15.08942985534668,
+   "cluster_id": 5
+  },
+  {
+   "id": "27e43e9bae10a117",
+   "url": "https://www.greenchoices.org/news/blog-posts/the-jevons-paradox-when-efficiency-leads-to-increased-consumption",
+   "domain": "www.greenchoices.org",
+   "title": "The Jevons Paradox: When Efficiency Leads to Increased Consumption – Green Choices",
+   "publish_date": "2023-07-12",
+   "x": -0.9533559083938599,
+   "y": -11.985008239746094,
+   "cluster_id": 0
+  },
+  {
+   "id": "591278a2fa37869a",
+   "url": "https://en.wikipedia.org/wiki/The_Coal_Question",
+   "domain": "en.wikipedia.org",
+   "title": "The Coal Question - Wikipedia",
+   "publish_date": "2006-06-14",
+   "x": 2.5199737548828125,
+   "y": -12.497170448303223,
+   "cluster_id": 0
+  },
+  {
+   "id": "432077581f40f7cb",
+   "url": "https://www.cio.com/article/247214/cloud-computing-has-its-jevons-moment.html",
+   "domain": "www.cio.com",
+   "title": "Cloud computing has its ‘Jevons Moment’",
+   "publish_date": "2015-06-11",
+   "x": -1.7847671508789062,
+   "y": -14.006148338317871,
+   "cluster_id": 4
+  },
+  {
+   "id": "32ccdc382393a135",
+   "url": "https://ohmyecon.org/journal/jevons-paradox-the-unintended-consequence-of-efficiency",
+   "domain": "ohmyecon.org",
+   "title": "Jevons Paradox: The Unintended Consequence of Efficiency — OhMyEcon",
+   "publish_date": "2025-03-26",
+   "x": -0.43354862928390503,
+   "y": -13.429137229919434,
+   "cluster_id": 0
+  },
+  {
+   "id": "454fef2cc7c55716",
+   "url": "https://en.wikipedia.org/wiki/William_Stanley_Jevons",
+   "domain": "en.wikipedia.org",
+   "title": "William Stanley Jevons - Wikipedia",
+   "publish_date": "2003-04-07",
+   "x": 1.128747820854187,
+   "y": -12.310279846191406,
+   "cluster_id": -1
+  },
+  {
+   "id": "50bb5547d695eaf8",
+   "url": "https://geoexpro.com/jevons-paradox/",
+   "domain": "geoexpro.com",
+   "title": "Jevons paradox - GeoExpro",
+   "publish_date": "2024-11-27",
+   "x": 4.1507568359375,
+   "y": -11.434279441833496,
+   "cluster_id": 0
+  },
+  {
+   "id": "a5fd7c7199024da6",
+   "url": "https://www.ricklindquist.com/blog/jevons-paradox",
+   "domain": "www.ricklindquist.com",
+   "title": "What is Jevons paradox? — Rick Lindquist",
+   "publish_date": "2025-12-05",
+   "x": -3.0377368927001953,
+   "y": -13.872428894042969,
+   "cluster_id": 4
+  },
+  {
+   "id": "e26bbc229942e899",
+   "url": "https://tinycomputers.io/posts/jevons-paradox.html",
+   "domain": "tinycomputers.io",
+   "title": "Jevons Paradox",
+   "publish_date": "2025-04-15",
+   "x": -1.3406394720077515,
+   "y": -13.380971908569336,
+   "cluster_id": 4
+  },
+  {
+   "id": "4533db83111dad98",
+   "url": "https://economicsfromthetopdown.com/2024/05/18/a-tour-of-the-jevons-paradox-how-energy-efficiency-backfires/",
+   "domain": "economicsfromthetopdown.com",
+   "title": "A Tour of the Jevons Paradox: How Energy Efficiency Backfires – Economics from the Top Down",
+   "publish_date": "2024-05-18",
+   "x": 1.8016111850738525,
+   "y": -11.701616287231445,
+   "cluster_id": 0
+  },
+  {
+   "id": "9b5f58c6971ffd53",
+   "url": "https://www.npr.org/sections/planet-money/2025/02/04/g-s1-46018/ai-deepseek-economics-jevons-paradox",
+   "domain": "www.npr.org",
+   "title": "Why the AI world is suddenly obsessed with a 160-year-old economics paradox",
+   "publish_date": "2025-02-04",
+   "x": -2.268458843231201,
+   "y": -12.909899711608887,
+   "cluster_id": 4
+  },
+  {
+   "id": "85141bef8bb17318",
+   "url": "https://en.wikipedia.org/wiki/Rebound_effect_(conservation)",
+   "domain": "en.wikipedia.org",
+   "title": "Rebound effect (conservation) - Wikipedia",
+   "publish_date": "2007-03-31",
+   "x": 2.1225407123565674,
+   "y": -8.657750129699707,
+   "cluster_id": 1
+  },
+  {
+   "id": "901c3a5af8390dfb",
+   "url": "https://ui.adsabs.harvard.edu/abs/2000EnPol..28..389A/abstract",
+   "domain": "ui.adsabs.harvard.edu",
+   "title": "Energy efficiency and consumption — the rebound effect — a survey",
+   "publish_date": "2000-01-01",
+   "x": 1.6154067516326904,
+   "y": -7.946721076965332,
+   "cluster_id": 1
+  },
+  {
+   "id": "ae52c2880556e492",
+   "url": "https://peri.umass.edu/publication/energy-efficiency-and-economy-wide-rebound-effects-a-review-of-the-evidence-and-its-implications/",
+   "domain": "peri.umass.edu",
+   "title": "Energy Efficiency and Economy-wide Rebound Effects: A Review of the Evidence and Its Implications",
+   "publish_date": "2021-04-07",
+   "x": 0.9692190289497375,
+   "y": -8.247299194335938,
+   "cluster_id": 1
+  },
+  {
+   "id": "0f4a0e7aa31b7a6b",
+   "url": "https://ukerc.ac.uk/project/the-rebound-effect-report/",
+   "domain": "ukerc.ac.uk",
+   "title": "The rebound effect report",
+   "publish_date": "2007-10-01",
+   "x": 1.0356364250183105,
+   "y": -9.063124656677246,
+   "cluster_id": 1
+  },
+  {
+   "id": "b12592e6b668f976",
+   "url": "https://ideas.repec.org/a/eee/enepol/v37y2009i4p1456-1469.html",
+   "domain": "ideas.repec.org",
+   "title": "Jevons' Paradox revisited: The evidence for backfire from im",
+   "publish_date": "2009-02-02",
+   "x": 1.2827730178833008,
+   "y": -10.014394760131836,
+   "cluster_id": 1
+  },
+  {
+   "id": "32069ba9f5bbaee8",
+   "url": "https://www.frontiersin.org/journals/energy-research/articles/10.3389/fenrg.2018.00026/full",
+   "domain": "www.frontiersin.org",
+   "title": "Frontiers | Unraveling the Complexity of the Jevons Paradox: The Link Between Innovation, Efficiency, and Sustainability",
+   "publish_date": "2018-04-04",
+   "x": 0.584506094455719,
+   "y": -11.377634048461914,
+   "cluster_id": 0
+  },
+  {
+   "id": "1b7cd48a7ead7e03",
+   "url": "https://www.inscc.utah.edu/~tgarrett/jevons-paradox.html",
+   "domain": "www.inscc.utah.edu",
+   "title": null,
+   "publish_date": "2012-01-03",
+   "x": 2.317321300506592,
+   "y": -10.737764358520508,
+   "cluster_id": 0
+  },
+  {
+   "id": "de2fb120e1adf5ab",
+   "url": "https://climate.sustainability-directory.com/question/what-is-the-jevons-paradox-in-sustainability/",
+   "domain": "climate.sustainability-directory.com",
+   "title": "What Is the Jevons Paradox in Sustainability? → Question",
+   "publish_date": "2025-03-28",
+   "x": -1.1487308740615845,
+   "y": -11.242741584777832,
+   "cluster_id": 0
+  },
+  {
+   "id": "222f5dc8fd36d5bb",
+   "url": "https://www.solar.com/learn/the-efficiency-paradox/",
+   "domain": "www.solar.com",
+   "title": "Jevons Energy Efficiency Paradox",
+   "publish_date": "2022-08-16",
+   "x": 2.067563533782959,
+   "y": -9.399688720703125,
+   "cluster_id": 1
+  },
+  {
+   "id": "c20b45a9c4cf76fd",
+   "url": "https://blog.gorozen.com/blog/dr-jevons-paradox-energy-demand",
+   "domain": "blog.gorozen.com",
+   "title": "Jevons Paradox: Improved Energy Efficiency Increases Demand - Let's Discuss",
+   "publish_date": "2023-12-14",
+   "x": 4.187994480133057,
+   "y": -10.506056785583496,
+   "cluster_id": 0
+  },
+  {
+   "id": "bde9624611ab1627",
+   "url": "https://rmi.org/blog_jevons_paradox/",
+   "domain": "rmi.org",
+   "title": "Jevons Paradox: The Debate That Just Won't Die - RMI",
+   "publish_date": "2012-03-20",
+   "x": 3.1377406120300293,
+   "y": -10.120780944824219,
+   "cluster_id": 0
+  },
+  {
+   "id": "f70ec6de687ee5d1",
+   "url": "https://arxiv.org/html/2501.16548",
+   "domain": "arxiv.org",
+   "title": "From Efficiency Gains to Rebound Effects: The Problem of Jevons’ Paradox in AI’s Polarized Environmental Debate",
+   "publish_date": "2011-03-11",
+   "x": -2.216308832168579,
+   "y": -15.855177879333496,
+   "cluster_id": 5
+  },
+  {
+   "id": "2cfb56012d863869",
+   "url": "https://www.rethinkx.com/blog/rethinking-jevons-paradox",
+   "domain": "www.rethinkx.com",
+   "title": "Rethinking the Jevons Paradox: why more clean energy efficiency is good for the environment",
+   "publish_date": "2022-02-07",
+   "x": 0.27006641030311584,
+   "y": -12.957108497619629,
+   "cluster_id": 0
+  },
+  {
+   "id": "52d821100556651a",
+   "url": "https://fee.org/articles/the-jevons-paradox-and-the-green-new-deal/",
+   "domain": "fee.org",
+   "title": "The Jevons Paradox and the Green New Deal",
+   "publish_date": "2024-02-06",
+   "x": 1.3863369226455688,
+   "y": -13.440876007080078,
+   "cluster_id": 0
+  },
+  {
+   "id": "3029abcbc5e1eae8",
+   "url": "https://www.newyorker.com/magazine/2010/12/20/the-efficiency-dilemma",
+   "domain": "www.newyorker.com",
+   "title": "The Efficiency Dilemma",
+   "publish_date": "2010-12-20",
+   "x": 3.017146587371826,
+   "y": -11.295737266540527,
+   "cluster_id": 0
+  },
+  {
+   "id": "c2313e97ec6b5963",
+   "url": "https://pollution.sustainability-directory.com/question/what-are-real-world-examples-of-jevons-paradox/",
+   "domain": "pollution.sustainability-directory.com",
+   "title": "What Are Real World Examples of Jevons Paradox? → Question",
+   "publish_date": "2025-12-15",
+   "x": -0.41319572925567627,
+   "y": -10.819300651550293,
+   "cluster_id": 0
+  },
+  {
+   "id": "c818641c9a462910",
+   "url": "https://holistiquetraining.com/en/news/what-is-jevons-paradox-a-comprehensive-guide",
+   "domain": "holistiquetraining.com",
+   "title": "What is Jevons Paradox? A Comprehensive Guide",
+   "publish_date": "2025-08-06",
+   "x": -1.6402884721755981,
+   "y": -12.151349067687988,
+   "cluster_id": 0
+  },
+  {
+   "id": "60f8fb0137f9ba13",
+   "url": "https://energy.sustainability-directory.com/term/jevons-paradox/",
+   "domain": "energy.sustainability-directory.com",
+   "title": "Jevons Paradox → Term",
+   "publish_date": "2025-11-22",
+   "x": -0.18924346566200256,
+   "y": -12.33292007446289,
+   "cluster_id": 0
+  },
+  {
+   "id": "6ac58ab449132bc2",
+   "url": "https://climate.sustainability-directory.com/term/rebound-effect-jevons-paradox/",
+   "domain": "climate.sustainability-directory.com",
+   "title": "Rebound Effect Jevons Paradox → Term",
+   "publish_date": "2025-04-14",
+   "x": -0.2543841004371643,
+   "y": -9.328045845031738,
+   "cluster_id": 1
+  },
+  {
+   "id": "b2dc975a033f1ae1",
+   "url": "https://illuminem.com/illuminemvoices/jevons-paradox-and-the-future-of-ai-infrastructure-a-misapplied-economic-theory",
+   "domain": "illuminem.com",
+   "title": "Jevons' paradox and the future of AI infrastructure: a misapplied economic theory? | illuminem",
+   "publish_date": "2025-02-05",
+   "x": -2.211238384246826,
+   "y": -14.795666694641113,
+   "cluster_id": 5
+  },
+  {
+   "id": "4e660a5b119f0e3a",
+   "url": "https://www.transparency.travel/insight/jevons-paradox-why-more-efficiency-wont-save-us",
+   "domain": "www.transparency.travel",
+   "title": "Jevons’ Paradox: Why More Efficiency Won’t Save Us — Transparency.Travel",
+   "publish_date": "2025-01-30",
+   "x": -3.879397392272949,
+   "y": -14.297043800354004,
+   "cluster_id": -1
+  },
+  {
+   "id": "4490f0317f7f9256",
+   "url": "https://www.numberanalytics.com/blog/jevons-paradox-ultimate-guide",
+   "domain": "www.numberanalytics.com",
+   "title": "Jevons Paradox: The Rebound Effect",
+   "publish_date": "2025-06-10",
+   "x": -1.0876067876815796,
+   "y": -10.337573051452637,
+   "cluster_id": 0
+  },
+  {
+   "id": "8fb5fadf26a9344e",
+   "url": "https://publicservicesalliance.org/2025/01/29/jevons-paradox-and-efficiencies-of-ai-processes/",
+   "domain": "publicservicesalliance.org",
+   "title": "Jevon’s Paradox and Efficiencies of AI processes",
+   "publish_date": "2025-01-29",
+   "x": -0.933964729309082,
+   "y": -14.617496490478516,
+   "cluster_id": -1
+  },
+  {
+   "id": "9a760002f5301121",
+   "url": "https://www.timpaul.co.uk/posts/automation-and-the-jevons-paradox/",
+   "domain": "www.timpaul.co.uk",
+   "title": "Automation and the Jevons paradox",
+   "publish_date": "2024-02-28",
+   "x": -3.5489590167999268,
+   "y": -13.171343803405762,
+   "cluster_id": -1
+  },
+  {
+   "id": "da099cf0e0ce72d0",
+   "url": "https://www.iea.org/energy-system/energy-efficiency-and-demand/energy-efficiency",
+   "domain": "www.iea.org",
+   "title": "Energy Efficiency - Energy System - IEA",
+   "publish_date": "2026-04-14",
+   "x": 5.902344703674316,
+   "y": -4.582601547241211,
+   "cluster_id": 2
+  },
+  {
+   "id": "61d76714a7d5724c",
+   "url": "https://www.energystar.gov/about/how-energy-star-protects-environment/energy-efficiency",
+   "domain": "www.energystar.gov",
+   "title": "Energy Efficiency",
+   "publish_date": "2024-11-01",
+   "x": 6.834052562713623,
+   "y": -7.650823593139648,
+   "cluster_id": 3
+  },
+  {
+   "id": "fae5cea279d679e3",
+   "url": "https://science.time.com/2010/09/30/energy-will-efficiency-lead-to-more-consumption/",
+   "domain": "science.time.com",
+   "title": "Energy: Will Efficiency Lead to More Consumption?",
+   "publish_date": "2010-09-30",
+   "x": 4.23884916305542,
+   "y": -8.729183197021484,
+   "cluster_id": 0
+  },
+  {
+   "id": "004d9f8c63834c7e",
+   "url": "https://www.eesi.org/topics/energy-efficiency/description",
+   "domain": "www.eesi.org",
+   "title": "Energy Efficiency",
+   "publish_date": "2024-10-14",
+   "x": 5.929344177246094,
+   "y": -6.4873785972595215,
+   "cluster_id": 3
+  },
+  {
+   "id": "78582ae21dd548db",
+   "url": "https://www.rff.org/publications/explainers/energy-efficiency-101/",
+   "domain": "www.rff.org",
+   "title": "Energy Efficiency 101",
+   "publish_date": "2020-06-17",
+   "x": 5.607604026794434,
+   "y": -7.520043849945068,
+   "cluster_id": 3
+  },
+  {
+   "id": "7665a4d3d14d4d7f",
+   "url": "https://www.pearson.com/channels/microeconomics/asset/17823661/why-can-improvements-in-energy-efficiency-som",
+   "domain": "www.pearson.com",
+   "title": "Why can improvements in energy efficiency sometimes lead to an in... | Study Prep in Pearson+",
+   "publish_date": "2025-05-01",
+   "x": 3.0085091590881348,
+   "y": -8.05860710144043,
+   "cluster_id": 1
+  },
+  {
+   "id": "6f87267bd801815c",
+   "url": "https://en.wikipedia.org/wiki/Efficient_energy_use",
+   "domain": "en.wikipedia.org",
+   "title": "Efficient energy use - Wikipedia",
+   "publish_date": "2007-06-25",
+   "x": 5.07559061050415,
+   "y": -6.100993633270264,
+   "cluster_id": 2
+  },
+  {
+   "id": "22e160a6ef4be4db",
+   "url": "https://www.epa.gov/statelocalenergy/local-energy-efficiency-benefits-and-opportunities",
+   "domain": "www.epa.gov",
+   "title": "Local Energy Efficiency Benefits and Opportunities | US EPA",
+   "publish_date": "2017-07-05",
+   "x": 7.4931488037109375,
+   "y": -6.25509786605835,
+   "cluster_id": 3
+  },
+  {
+   "id": "7f83ef8841ce3ed2",
+   "url": "https://www.ren21.net/gsr-2020/chapters/chapter_07/chapter_07/",
+   "domain": "www.ren21.net",
+   "title": "RENEWABLES 2020 GLOBAL STATUS REPORT",
+   "publish_date": "2019-05-01",
+   "x": 6.491130352020264,
+   "y": -4.073552131652832,
+   "cluster_id": 2
+  },
+  {
+   "id": "ed173b418600e7f9",
+   "url": "https://understand-energy.stanford.edu/energy-resources/renewable-energy/energy-efficiency",
+   "domain": "understand-energy.stanford.edu",
+   "title": "Energy Efficiency",
+   "publish_date": "2012-01-07",
+   "x": 6.573904514312744,
+   "y": -6.641112327575684,
+   "cluster_id": 3
+  },
+  {
+   "id": "00648ba8135602fa",
+   "url": "https://www.danfoss.com/en/about-danfoss/insights/energy-efficiency/",
+   "domain": "www.danfoss.com",
+   "title": "Energy efficiency",
+   "publish_date": "2023-07-11",
+   "x": 7.362306594848633,
+   "y": -4.373795986175537,
+   "cluster_id": 2
+  },
+  {
+   "id": "059e790f1a154bdd",
+   "url": "https://www.seforall.org/goal-7-targets/energy-efficiency",
+   "domain": "www.seforall.org",
+   "title": "SDG 7.3 - Energy efficiency",
+   "publish_date": "2024-09-20",
+   "x": 5.346532821655273,
+   "y": -4.684825420379639,
+   "cluster_id": 2
+  },
+  {
+   "id": "e1b579202f3189cb",
+   "url": "https://www.eea.europa.eu/en/topics/in-depth/energy-efficiency",
+   "domain": "www.eea.europa.eu",
+   "title": "Energy efficiency",
+   "publish_date": "2024-11-04",
+   "x": 6.00681734085083,
+   "y": -5.6218953132629395,
+   "cluster_id": 2
+  },
+  {
+   "id": "3f6be067a355d67e",
+   "url": "https://rmi.org/the-importance-of-accelerating-energy-efficiency/",
+   "domain": "rmi.org",
+   "title": "The Importance of Accelerating Energy Efficiency - RMI",
+   "publish_date": "2025-04-04",
+   "x": 6.67186975479126,
+   "y": -5.215438365936279,
+   "cluster_id": 2
+  },
+  {
+   "id": "46c5473358069cbc",
+   "url": "https://rmi.org/why-efficiency-matters-unlocking-benefits-beyond-climate-for-all/",
+   "domain": "rmi.org",
+   "title": "Why Efficiency Matters: Unlocking Benefits Beyond Climate for All - RMI",
+   "publish_date": "2024-08-23",
+   "x": 7.624492168426514,
+   "y": -5.255627632141113,
+   "cluster_id": 2
+  },
+  {
+   "id": "e417d88df1bab1c8",
+   "url": "https://www.mdcleanenergy.org/resources/energy-awareness/save-money-education/why-efficiency-matters/",
+   "domain": "www.mdcleanenergy.org",
+   "title": "Why Energy Efficiency Measures Matter - MD Clean Energy",
+   "publish_date": "2026-04-09",
+   "x": 7.653059959411621,
+   "y": -6.963286876678467,
+   "cluster_id": 3
+  }
+ ],
+ "propositions": [
+  {
+   "position": 0,
+   "statement": "Efficiency gains can produce rebound effects that raise total resource consumption, so efficiency can increase rather than reduce overall use (the Jevons paradox).",
+   "stances": [
+    {
+     "article_id": "198efba2d31ed4c9",
+     "stance": "agrees",
+     "claim": "Jevons Paradox holds that efficiency makes a resource cheaper and so raises its total consumption, as with British coal use tripling by 1900."
+    },
+    {
+     "article_id": "1b7cd48a7ead7e03",
+     "stance": "agrees",
+     "claim": "Increasing energy efficiency may drive growth in global energy consumption and emissions, contrary to common expectations."
+    },
+    {
+     "article_id": "27e43e9bae10a117",
+     "stance": "agrees",
+     "claim": "Efficiency improvements can increase consumption through rebound effects because lower costs make resource use more attractive."
+    },
+    {
+     "article_id": "2cfb56012d863869",
+     "stance": "qualifies",
+     "claim": "The Jevons paradox occurs only when a technology makes an existing process more efficient and demand is highly price-sensitive."
+    },
+    {
+     "article_id": "32ccdc382393a135",
+     "stance": "agrees",
+     "claim": "Jevons Paradox holds that efficiency gains lower the cost of a resource, which raises demand and can increase total consumption."
+    },
+    {
+     "article_id": "4490f0317f7f9256",
+     "stance": "agrees",
+     "claim": "Jevons Paradox says efficiency gains reduce a resource's cost, making it more attractive and increasing demand and total consumption."
+    },
+    {
+     "article_id": "4533db83111dad98",
+     "stance": "agrees",
+     "claim": "Efficiency gains tend to increase collective resource consumption because they cheapen services, so people use more of them."
+    },
+    {
+     "article_id": "454fef2cc7c55716",
+     "stance": "agrees",
+     "claim": "In The Coal Question (1865), Jevons argued that increased energy production efficiency leads to more consumption, a view now known as the Jevons paradox."
+    },
+    {
+     "article_id": "4e660a5b119f0e3a",
+     "stance": "agrees",
+     "claim": "When a resource becomes more efficient to use, total consumption often rises rather than falls, as in coal engines, cars and AI."
+    },
+    {
+     "article_id": "50bb5547d695eaf8",
+     "stance": "agrees",
+     "claim": "Jevons paradox operates globally: since 1990 energy efficiency rose 36% while total energy consumption rose 63%."
+    },
+    {
+     "article_id": "901c3a5af8390dfb",
+     "stance": "qualifies",
+     "claim": "For the end uses with available US studies, estimates of the rebound effect range from very low to moderate."
+    },
+    {
+     "article_id": "a5fd7c7199024da6",
+     "stance": "agrees",
+     "claim": "Jevons argued that improved efficiency lowers costs and prices, which drives higher demand and increases total consumption."
+    },
+    {
+     "article_id": "b2dc975a033f1ae1",
+     "stance": "qualifies",
+     "claim": "Jevons' paradox is far from a deterministic law, and market saturation and capital limits can dampen or eliminate the rebound effect in high-tech sectors."
+    },
+    {
+     "article_id": "bde9624611ab1627",
+     "stance": "disputes",
+     "claim": "Amory Lovins argues David Owen's rebound claims about energy efficiency are counterfactual, discredited, and were rebutted by several experts."
+    },
+    {
+     "article_id": "c2313e97ec6b5963",
+     "stance": "agrees",
+     "claim": "Jevons Paradox holds that efficiency gains lower resource costs and can raise total consumption, as Jevons saw with coal and steam engines."
+    },
+    {
+     "article_id": "c818641c9a462910",
+     "stance": "agrees",
+     "claim": "Jevons Paradox says efficiency improvements lower costs and stimulate demand, which can increase total resource consumption instead of conserving it."
+    },
+    {
+     "article_id": "de2fb120e1adf5ab",
+     "stance": "agrees",
+     "claim": "The Jevons Paradox says efficiency gains can paradoxically increase total resource consumption, as with coal use after more efficient steam engines."
+    },
+    {
+     "article_id": "e26bbc229942e899",
+     "stance": "agrees",
+     "claim": "The Jevons Paradox says energy efficiency improvements can increase rather than decrease energy consumption."
+    }
+   ]
+  },
+  {
+   "position": 1,
+   "statement": "Jevons paradox applies to AI efficiency gains such as DeepSeek, so more efficient AI will increase total use of chips, data centers and energy.",
+   "stances": [
+    {
+     "article_id": "198efba2d31ed4c9",
+     "stance": "agrees",
+     "claim": "Piao argues efficiency unlocks new demand, so cheaper AI will drive GPU sales and energy use."
+    },
+    {
+     "article_id": "8fb5fadf26a9344e",
+     "stance": "agrees",
+     "claim": "Jevons' Paradox likely applies to DeepSeek's efficiency gains, so greater AI efficiency will drive greater use and keep GPUs and data centers critically important."
+    },
+    {
+     "article_id": "9b5f58c6971ffd53",
+     "stance": "agrees",
+     "claim": "Microsoft CEO Satya Nadella invoked Jevons paradox to argue that more efficient AI, as shown by DeepSeek, will see its use skyrocket."
+    },
+    {
+     "article_id": "b2dc975a033f1ae1",
+     "stance": "qualifies",
+     "claim": "Efficiency gains in AI may not guarantee exponential demand for chips, GPUs and data centers."
+    },
+    {
+     "article_id": "f70ec6de687ee5d1",
+     "stance": "agrees",
+     "claim": "Jevons' Paradox applies to AI: efficiency gains may spur increased overall consumption, producing rebound effects that offset the environmental benefits of efficiency."
+    }
+   ]
+  },
+  {
+   "position": 2,
+   "statement": "Efficiency alone is insufficient for sustainability and must be complemented by policies or behavioral measures addressing rebound.",
+   "stances": [
+    {
+     "article_id": "004d9f8c63834c7e",
+     "stance": "agrees",
+     "claim": "Research shows 30 percent of the potential energy savings of efficient technologies is lost to social, cultural and economic factors, so human behavior must be addressed."
+    },
+    {
+     "article_id": "27e43e9bae10a117",
+     "stance": "agrees",
+     "claim": "Relying solely on efficiency is insufficient for environmental goals and must be complemented by measures addressing rebound."
+    },
+    {
+     "article_id": "32069ba9f5bbaee8",
+     "stance": "agrees",
+     "claim": "Sustainability cannot be achieved by technological innovation alone and requires continuous institutional and behavioral adjustment."
+    },
+    {
+     "article_id": "4490f0317f7f9256",
+     "stance": "agrees",
+     "claim": "Policymakers should account for potential offsetting increases in consumption when developing resource management strategies."
+    },
+    {
+     "article_id": "4e660a5b119f0e3a",
+     "stance": "agrees",
+     "claim": "Without conscious intervention efficiency leads to more consumption, so the key question is how to make efficiency actually reduce consumption."
+    },
+    {
+     "article_id": "60f8fb0137f9ba13",
+     "stance": "agrees",
+     "claim": "Technology alone cannot solve resource scarcity and ecological damage without mindful policies and interventions."
+    },
+    {
+     "article_id": "6ac58ab449132bc2",
+     "stance": "agrees",
+     "claim": "Technology alone cannot guarantee absolute reductions in resource use; human behavior and markets shape outcomes."
+    },
+    {
+     "article_id": "8fb5fadf26a9344e",
+     "stance": "agrees",
+     "claim": "Efficiency alone may not reduce total resource consumption, so policies such as carbon taxes or caps may be needed."
+    },
+    {
+     "article_id": "de2fb120e1adf5ab",
+     "stance": "agrees",
+     "claim": "Efficiency alone is not a silver bullet for sustainability and could even worsen the problems it targets."
+    },
+    {
+     "article_id": "e535e0dd2e09ab1b",
+     "stance": "agrees",
+     "claim": "Pairing efficiency gains with policies that raise cost of use, such as cap and trade or green taxes, can control the rebound."
+    },
+    {
+     "article_id": "f70ec6de687ee5d1",
+     "stance": "agrees",
+     "claim": "Technical efficiency alone cannot ensure net reductions in AI's environmental harm; its impact also depends on business incentives, market logics, governance, policymaking and social norms."
+    }
+   ]
+  },
+  {
+   "position": 3,
+   "statement": "The magnitude of the rebound effect is contested and difficult to measure.",
+   "stances": [
+    {
+     "article_id": "1b7cd48a7ead7e03",
+     "stance": "agrees",
+     "claim": "The total magnitude of rebound or backfire is contentious and nearly impossible to calculate because efficiency effects propagate through the whole global economy."
+    },
+    {
+     "article_id": "222f5dc8fd36d5bb",
+     "stance": "agrees",
+     "claim": "The rebound effect is real, but its magnitude is debated, ranging from super conservation to backfire."
+    },
+    {
+     "article_id": "32069ba9f5bbaee8",
+     "stance": "agrees",
+     "claim": "Understanding the Jevons Paradox requires complexity science, not reductionism, because a system changes its identity in response to innovation, which makes the rebound effect hard to quantify."
+    },
+    {
+     "article_id": "85141bef8bb17318",
+     "stance": "agrees",
+     "claim": "Economists agree the rebound effect exists but disagree about its magnitude and importance in real-world situations."
+    },
+    {
+     "article_id": "ae52c2880556e492",
+     "stance": "qualifies",
+     "claim": "Economy-wide rebound effects may erode more than half of the expected energy savings from improved energy efficiency."
+    },
+    {
+     "article_id": "c2313e97ec6b5963",
+     "stance": "agrees",
+     "claim": "Rebound effects come in direct, indirect and economy-wide forms, and the economy-wide effect is the hardest to measure."
+    },
+    {
+     "article_id": "e535e0dd2e09ab1b",
+     "stance": "agrees",
+     "claim": "Economists debate the size of the rebound effect and the paradox's relevance to energy conservation."
+    }
+   ]
+  },
+  {
+   "position": 4,
+   "statement": "LED and other lighting efficiency gains have led to more lighting use that erodes the energy savings.",
+   "stances": [
+    {
+     "article_id": "27e43e9bae10a117",
+     "stance": "agrees",
+     "claim": "Examples include vehicle miles, LED lighting and data centres, where overall consumption has not fallen despite efficiency gains."
+    },
+    {
+     "article_id": "b2dc975a033f1ae1",
+     "stance": "agrees",
+     "claim": "Cars and lighting show the paradox, as efficiency gains encouraged more driving and wider lighting use."
+    },
+    {
+     "article_id": "c2313e97ec6b5963",
+     "stance": "agrees",
+     "claim": "LED lighting is an example where cheaper lighting leads people to light more spaces, eroding expected energy savings."
+    },
+    {
+     "article_id": "de2fb120e1adf5ab",
+     "stance": "agrees",
+     "claim": "LED lighting illustrates the paradox: cheaper lighting can lead to more lights and longer use."
+    },
+    {
+     "article_id": "fae5cea279d679e3",
+     "stance": "agrees",
+     "claim": "A study of 300 years of lighting use in Britain found people spend roughly the same share of GDP, about 0.72%, on lighting regardless of efficiency."
+    }
+   ]
+  },
+  {
+   "position": 5,
+   "statement": "Energy efficiency is among the cheapest, fastest and most cost-effective ways to cut emissions and energy costs.",
+   "stances": [
+    {
+     "article_id": "004d9f8c63834c7e",
+     "stance": "agrees",
+     "claim": "Energy efficiency is the cheapest and often most immediate way to reduce fossil fuel use, while cutting emissions, energy imports and costs."
+    },
+    {
+     "article_id": "00648ba8135602fa",
+     "stance": "agrees",
+     "claim": "Energy efficiency is the quickest and most affordable way to decarbonize the economy, and the IEA says it can deliver a third of emission reductions needed for 2050 net zero."
+    },
+    {
+     "article_id": "22e160a6ef4be4db",
+     "stance": "agrees",
+     "claim": "Energy efficiency is one of the fastest, most cost-effective ways to save money, cut emissions, create jobs and meet growing energy demand."
+    },
+    {
+     "article_id": "3029abcbc5e1eae8",
+     "stance": "agrees",
+     "claim": "Federal officials such as Steven Chu portray energy efficiency as a cost-free way to cut oil use, emissions and consumer spending without sacrifice."
+    },
+    {
+     "article_id": "3f6be067a355d67e",
+     "stance": "agrees",
+     "claim": "Energy efficiency is crucial for the energy transition because it eases energy security concerns, cuts costs, improves competitiveness and reduces grid investment needs."
+    },
+    {
+     "article_id": "46c5473358069cbc",
+     "stance": "agrees",
+     "claim": "Energy efficiency makes climate action faster, cheaper and more equitable, since today's energy system wastes two-thirds of global energy production, costing about $4.5 trillion yearly."
+    },
+    {
+     "article_id": "61d76714a7d5724c",
+     "stance": "agrees",
+     "claim": "Energy efficiency is among the easiest and most cost-effective ways to cut energy waste, bills and air pollution."
+    },
+    {
+     "article_id": "78582ae21dd548db",
+     "stance": "agrees",
+     "claim": "Energy efficiency is a win-win that reduces energy use, emissions and customer costs, despite sometimes higher upfront costs."
+    },
+    {
+     "article_id": "bde9624611ab1627",
+     "stance": "agrees",
+     "claim": "Efficient energy use is the most important and economical way to provide future energy services, and the US could run its economy on 40 percent less primary energy by 2050."
+    },
+    {
+     "article_id": "da099cf0e0ce72d0",
+     "stance": "agrees",
+     "claim": "Energy efficiency is the 'first fuel' of clean energy transitions, offering quick, cost-effective CO2 mitigation, lower bills and better energy security."
+    },
+    {
+     "article_id": "ed173b418600e7f9",
+     "stance": "agrees",
+     "claim": "Efficiency is often the cheapest and most effective way to meet energy service demand while reducing climate impact."
+    }
+   ]
+  },
+  {
+   "position": 6,
+   "statement": "Efficiency reduces energy demand, easing grid expansion needs and helping integrate renewables.",
+   "stances": [
+    {
+     "article_id": "00648ba8135602fa",
+     "stance": "agrees",
+     "claim": "Reducing energy demand lessens the need to expand the grid and accelerates the switch to renewables."
+    },
+    {
+     "article_id": "22e160a6ef4be4db",
+     "stance": "agrees",
+     "claim": "Efficiency lowers electricity demand, reducing the need for new generation and transmission and hedging against fuel price volatility."
+    },
+    {
+     "article_id": "3f6be067a355d67e",
+     "stance": "agrees",
+     "claim": "Rising demand from electrification, data centers and cooling means utilities must prioritize efficiency to avoid costly grid expansion."
+    },
+    {
+     "article_id": "7f83ef8841ce3ed2",
+     "stance": "agrees",
+     "claim": "Efficiency measures facilitate renewable deployment, so integrated strategies are the most effective approach."
+    },
+    {
+     "article_id": "e417d88df1bab1c8",
+     "stance": "agrees",
+     "claim": "Energy efficiency lowers household energy bills and reduces strain on the grid, helping prevent blackouts at peak times."
+    }
+   ]
+  },
+  {
+   "position": 7,
+   "statement": "Global energy efficiency progress is falling short of the pace needed for climate goals.",
+   "stances": [
+    {
+     "article_id": "00648ba8135602fa",
+     "stance": "agrees",
+     "claim": "Leaders' thinking about energy efficiency is stuck in the fossil fuel era, which jeopardizes global climate goals."
+    },
+    {
+     "article_id": "059e790f1a154bdd",
+     "stance": "agrees",
+     "claim": "The world is not yet on track for SDG 7.3, as energy intensity improved only 1.8 percent annually in 2010-2020."
+    },
+    {
+     "article_id": "3f6be067a355d67e",
+     "stance": "agrees",
+     "claim": "Efficiency improvements fell to about 1 percent in 2024 instead of doubling to 4 percent as pledged at COP28."
+    },
+    {
+     "article_id": "da099cf0e0ce72d0",
+     "stance": "qualifies",
+     "claim": "Efficiency is the largest single measure for avoiding energy demand in the Net Zero Scenario, with global energy intensity falling about 4% per year this decade."
+    }
+   ]
+  },
+  {
+   "position": 8,
+   "statement": "Jevons argued in The Coal Question that coal's finiteness and rising demand would limit British prosperity.",
+   "stances": [
+    {
+     "article_id": "454fef2cc7c55716",
+     "stance": "agrees",
+     "claim": "Because of The Coal Question, Jevons is regarded as the first economist of standing to develop an ecological perspective on the economy."
+    },
+    {
+     "article_id": "591278a2fa37869a",
+     "stance": "agrees",
+     "claim": "Jevons argued in The Coal Question that Britain's global supremacy was transitory because its primary energy resource, coal, is finite."
+    }
+   ]
+  },
+  {
+   "position": 9,
+   "statement": "A Jevons-style demand increase may raise labor demand in some occupations rather than cause mass job loss from AI.",
+   "stances": [
+    {
+     "article_id": "9a760002f5301121",
+     "stance": "disputes",
+     "claim": "Efficiency gains from automation may not free up workers for more valuable work, since employers may cut pay, hiring or add low-value work instead."
+    },
+    {
+     "article_id": "9b5f58c6971ffd53",
+     "stance": "agrees",
+     "claim": "Jevons paradox is also cited as a reason AI may create more jobs in some occupations rather than cause mass layoffs."
+    },
+    {
+     "article_id": "a5fd7c7199024da6",
+     "stance": "qualifies",
+     "claim": "Coders, translators and radiologists may be occupations where AI productivity gains coincide with growing demand, whereas farming shows demand does not always explode."
+    }
+   ]
+  },
+  {
+   "position": 10,
+   "statement": "Efficiency measures delivered large energy and emissions savings historically and can cut future energy needs substantially.",
+   "stances": [
+    {
+     "article_id": "46c5473358069cbc",
+     "stance": "agrees",
+     "claim": "Efficiency measures already saved about 15 percent of energy bills in 2022 and could cut global energy costs 20-25 percent by 2030."
+    },
+    {
+     "article_id": "6f87267bd801815c",
+     "stance": "agrees",
+     "claim": "Energy efficiency avoided more energy consumption in IEA member countries during 1974-2010 than any single fuel supplied."
+    },
+    {
+     "article_id": "ed173b418600e7f9",
+     "stance": "agrees",
+     "claim": "Efficiency accounted for 82% of global carbon emissions reductions between 2010 and 2022 and met 67% of US energy demand growth since 1950."
+    }
+   ]
+  }
+ ]
+}
