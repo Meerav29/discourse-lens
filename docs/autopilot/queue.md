@@ -24,7 +24,7 @@ Rules for every slice:
 
 ## slice-1: design doc
 
-Status: todo
+Status: in-progress
 
 Write `skill/design.md`, a design a builder could implement the skill from without asking Meerav anything.
 

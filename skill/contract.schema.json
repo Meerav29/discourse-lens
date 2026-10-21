@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "discourse-lens-skill/contract/v1",
+  "title": "discourse-lens skill map contract",
+  "description": "What the research step hands the artifact. A superset of skill/fixtures/reference-map-jevons.json: every field the fixture has keeps its name and meaning, and every new field is optional, so the fixture validates as-is. See skill/design.md section 5.",
+  "type": "object",
+  "required": ["topic", "article_count", "clusters", "articles", "propositions"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "_note": { "type": "string" },
+    "topic": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "description": "ISO 8601 date-time the map was built" },
+    "article_count": { "type": "integer", "minimum": 0, "description": "Must equal articles.length" },
+    "queries": {
+      "type": "array",
+      "description": "Every search run, in order. Lets the reader see how the sample was drawn.",
+      "items": {
+        "type": "object",
+        "required": ["q"],
+        "properties": {
+          "q": { "type": "string" },
+          "purpose": { "enum": ["overview", "facet", "dissent", "recent", "user"] },
+          "results_kept": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["cluster_id", "label", "description", "article_count", "terms"],
+        "properties": {
+          "cluster_id": { "type": "integer", "minimum": 0 },
+          "label": { "type": "string", "maxLength": 40 },
+          "description": { "type": "string", "maxLength": 300 },
+          "article_count": { "type": "integer", "minimum": 0 },
+          "terms": {
+            "type": "array",
+            "maxItems": 12,
+            "description": "Distinctive terms. The app exports [term, weight] pairs; the skill writes plain strings. Renderers accept both.",
+            "items": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "prefixItems": [{ "type": "string" }, { "type": "number" }], "minItems": 2, "maxItems": 2 }
+              ]
+            }
+          },
+          "related": {
+            "type": "array",
+            "description": "Optional override of topic-to-topic closeness. When absent the renderer derives it from shared propositions.",
+            "items": {
+              "type": "object",
+              "required": ["cluster_id", "strength"],
+              "properties": {
+                "cluster_id": { "type": "integer", "minimum": 0 },
+                "strength": { "type": "number", "minimum": 0, "maximum": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "articles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "url", "domain", "title", "cluster_id"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "url": { "type": "string", "pattern": "^https?://" },
+          "domain": { "type": "string" },
+          "title": { "type": ["string", "null"], "description": "null when the page has none; the renderer falls back to the domain" },
+          "publish_date": { "type": ["string", "null"], "pattern": "^\\d{4}(-\\d{2}(-\\d{2})?)?$", "description": "Never guessed. null when the page and search result give no date." },
+          "cluster_id": { "type": "integer", "minimum": -1, "description": "-1 means unclustered" },
+          "x": { "type": "number", "description": "App export only. The skill omits it; the renderer ignores it." },
+          "y": { "type": "number", "description": "App export only. The skill omits it; the renderer ignores it." },
+          "fit": { "enum": ["core", "edge"], "description": "How squarely the source sits in its topic. Edge sources are drawn further out. Replaces the app's Outliers list." },
+          "also_cluster_id": { "type": "integer", "minimum": 0, "description": "A second topic the source clearly bridges to; the layout pulls it between the two." },
+          "read_depth": { "enum": ["full", "snippet"], "description": "full = page fetched and read; snippet = only the search result or abstract was seen" },
+          "source_type": { "enum": ["news", "explainer", "academic", "report", "blog", "reference", "other"] },
+          "summary": { "type": "string", "maxLength": 300, "description": "Paraphrase, at most ~40 words. Never copied text." },
+          "quote": { "type": "string", "maxLength": 120, "description": "Optional verbatim phrase, at most 15 words." }
+        }
+      }
+    },
+    "propositions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["position", "statement", "stances"],
+        "properties": {
+          "position": { "type": "integer", "minimum": 0 },
+          "statement": { "type": "string", "maxLength": 250 },
+          "stances": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "required": ["article_id", "stance", "claim"],
+              "properties": {
+                "article_id": { "type": "string" },
+                "stance": { "enum": ["agrees", "qualifies", "disputes"] },
+                "claim": { "type": "string", "maxLength": 250, "description": "Paraphrase of what this source says, at most ~30 words" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
