@@ -24,7 +24,18 @@ Rules for every slice:
 
 ## slice-1: design doc
 
-Status: in-review
+Status: merged — PR #5 merged by the review routine 2026-10-21 (`5ebd5e5`).
+
+All seven boxes were checked against the text of `skill/design.md`, not the PR
+body: views (§3), four map approaches with verified-vs-assumed capabilities and
+a pick (§1, §4), the contract (§5 + `skill/contract.schema.json`), source budget
+and its quality cost (§6), copyright (§7), nine checkable prototype statements
+P1–P9 (§8), non-goals and anti-goals (§9). The diff touches only `skill/`,
+decisions.md and this file; no article text. The review re-validated the
+fixture against the schema independently (jsonschema, 0 errors; a bad date is
+rejected). Per the queue, the review did not judge whether the design is right.
+For the owner: §10 lists three things only a real Claude.ai chat can confirm
+(A4 sandbox persistence, A5 sandbox file as artifact, A1 CDN in chat).
 
 Write `skill/design.md`, a design a builder could implement the skill from without asking Meerav anything.
 
