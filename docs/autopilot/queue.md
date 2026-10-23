@@ -53,7 +53,17 @@ Review checks each box against the doc text. It doesn't check whether the design
 
 ## slice-2: visualization prototype
 
-Status: in-review (PR #6)
+Status: held — PR #6 not merged by the review routine 2026-10-23: over the 600-line cap, flagged for the owner.
+
+Hand-written additions are 974 lines (template.html 358, build_map.py 219,
+check.cjs 179, make_test_contracts.py 91, FINDINGS.md 87, decisions.md 36,
+.gitignore 2, this file 2). Excluded as generated/data: map.html (358 lines,
+60,074 bytes), check-results.json (138), 11 PNGs. Even without the template the
+count is 616. Nothing else failed: the review re-ran map.html independently in
+headless Chromium 141 at 1440 and 390 px — 0 console errors or warnings, 0
+non-file requests, no sideways scroll at 390, 52 points drawn, the claims tab
+opens. The diff touches only `skill/`, decisions.md and this file; no article
+text. Merging it is the owner's call; slice-3 cannot start until it is merged.
 
 Build the visualization the design picked, as a **single self-contained HTML file** (the shape a Claude.ai artifact takes): `skill/prototype/map.html`, rendering `skill/fixtures/reference-map-jevons.json` inlined into it.
 
