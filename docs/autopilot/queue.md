@@ -53,7 +53,7 @@ Review checks each box against the doc text. It doesn't check whether the design
 
 ## slice-2: visualization prototype
 
-Status: in-progress
+Status: in-review (PR #6)
 
 Build the visualization the design picked, as a **single self-contained HTML file** (the shape a Claude.ai artifact takes): `skill/prototype/map.html`, rendering `skill/fixtures/reference-map-jevons.json` inlined into it.
 
