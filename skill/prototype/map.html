@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discourse map</title>
+<style>
+:root{--bg:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--ring:rgba(11,11,11,.10);
+--c0:#2a78d6;--c1:#eb6834;--c2:#1baf7a;--c3:#eda100;--c4:#e87ba4;--c5:#008300;--c6:#6250d6;--c7:#e34948;--cu:#a3a29a;
+--agree:#2a78d6;--qual:#a3a29a;--disp:#eb6834;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);
+--c0:#3987e5;--c1:#d95926;--c2:#199e70;--c3:#c98500;--c4:#d55181;--c5:#008300;--c6:#9085e9;--c7:#e66767;--cu:#6b6a64;--agree:#3987e5;--qual:#6b6a64;--disp:#d95926;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);
+--c0:#3987e5;--c1:#d95926;--c2:#199e70;--c3:#c98500;--c4:#d55181;--c5:#008300;--c6:#9085e9;--c7:#e66767;--cu:#6b6a64;--agree:#3987e5;--qual:#6b6a64;--disp:#d95926;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1280px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px;line-height:1.25}
+.meta{color:var(--ink2);margin:0 0 4px}
+.caption{color:var(--muted);font-size:12px;margin:0 0 14px}
+nav{display:flex;gap:4px;border-bottom:1px solid var(--grid);margin-bottom:14px;flex-wrap:wrap}
+nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--ink2);font:inherit;padding:8px 12px;cursor:pointer}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+.filter{display:none;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:6px 10px;margin-bottom:12px;font-size:13px}
+.filter.on{display:flex}
+.filter button,.linkbtn{background:none;border:1px solid var(--axis);border-radius:6px;color:var(--ink);font:inherit;font-size:12px;padding:2px 8px;cursor:pointer}
+.sw{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none}
+.mapwrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+@media (max-width:820px){.mapwrap{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--ring);border-radius:10px}
+#map{display:block;width:100%;touch-action:manipulation}
+#map .pt{stroke:var(--surface);stroke-width:1.5}
+#map .lbl{font-size:12px;font-weight:600;fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;cursor:pointer}
+#map .ulbl{font-weight:500;fill:var(--ink2)}
+#map .dim{opacity:.15}
+#map .hl{stroke:var(--ink);stroke-width:2}
+#tip{position:fixed;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--ring);border-radius:8px;padding:6px 9px;font-size:12px;max-width:280px;box-shadow:0 4px 14px rgba(0,0,0,.15);display:none;z-index:5}
+#tip b{display:block;font-weight:600}
+#tip span{color:var(--ink2)}
+.topics{padding:6px;max-height:640px;overflow:auto}
+.topic{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;color:inherit;font:inherit;padding:8px 10px;cursor:pointer}
+.topic:hover{background:var(--bg)}
+.topic[aria-pressed="true"]{background:var(--bg);outline:1px solid var(--axis)}
+.topic .h{display:flex;align-items:center;gap:8px;font-weight:600}
+.topic .n{margin-left:auto;color:var(--muted);font-weight:400;font-size:12px}
+.topic p{margin:3px 0 0 18px;color:var(--ink2);font-size:12px}
+.topic .terms{margin:4px 0 0 18px;color:var(--muted);font-size:11px}
+#timeline{padding:8px 10px 4px;margin-top:12px}
+#timeline h3,.card h3{font-size:12px;font-weight:600;color:var(--ink2);margin:0 0 4px}
+#card{position:fixed;right:16px;bottom:16px;width:min(380px,calc(100vw - 32px));max-height:min(70vh,560px);overflow:auto;padding:14px 16px;display:none;z-index:6;box-shadow:0 8px 28px rgba(0,0,0,.2)}
+#card.on{display:block}
+#card .x{position:absolute;right:8px;top:6px}
+#card h2{font-size:15px;margin:0 28px 4px 0;line-height:1.3}
+#card .sub{color:var(--ink2);font-size:12px;margin-bottom:8px}
+#card ul{padding-left:16px;margin:4px 0}
+#card li{margin-bottom:6px;font-size:13px}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:0 6px;border-radius:9px;color:#fff;margin-right:4px;vertical-align:1px}
+.b-agrees{background:var(--agree)}.b-qualifies{background:var(--qual);color:var(--ink)}.b-disputes{background:var(--disp)}
+a{color:var(--c0)}
+.prop{margin-bottom:10px;padding:0}
+.prop summary{list-style:none;cursor:pointer;padding:12px 14px}
+.prop summary::-webkit-details-marker{display:none}
+.prop .st{font-weight:600;margin-bottom:6px}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;max-width:420px}
+.bar i{display:block;height:100%}
+.counts{font-size:12px;color:var(--ink2);margin-top:4px}
+.prop .body{padding:0 14px 12px}
+.stance{display:grid;grid-template-columns:80px 1fr;gap:8px;padding:6px 0;border-top:1px solid var(--grid);font-size:13px}
+.stance .src{color:var(--muted);font-size:12px}
+.empty{color:var(--ink2);padding:20px;text-align:center}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--grid);vertical-align:top}
+th{cursor:pointer;color:var(--ink2);font-weight:600;white-space:nowrap;user-select:none}
+td.d{white-space:nowrap;color:var(--ink2)}
+.view[hidden]{display:none}
+</style>
+</head>
+<body>
+<main>
+<h1 id="title"></h1>
+<p class="meta" id="meta"></p>
+<p class="caption">Positions are schematic: topics that share claims sit closer; within a topic, distance means nothing. Paraphrased claims; follow the links for the original wording.</p>
+<nav role="tablist">
+<button role="tab" data-v="map" aria-selected="true">Map</button>
+<button role="tab" data-v="claims" aria-selected="false">Claims</button>
+<button role="tab" data-v="sources" aria-selected="false">Sources</button>
+</nav>
+<div class="filter" id="filter"><span class="sw" id="fsw"></span><span>Showing <b id="fname"></b> only</span><button type="button" id="fclear">Show all</button></div>
+<section class="view" id="v-map">
+<div class="mapwrap">
+<div><div class="panel"><svg id="map" role="img" aria-label="Map of sources grouped by topic"></svg></div>
+<div class="panel" id="timeline" hidden><h3 id="tl-h"></h3><svg id="tl" width="100%" height="64"></svg></div></div>
+<div class="panel topics" id="topics"></div>
+</div>
+</section>
+<section class="view" id="v-claims" hidden></section>
+<section class="view" id="v-sources" hidden><div class="panel tablewrap"><table id="tbl"></table></div></section>
+</main>
+<div id="tip"></div>
+<aside class="panel" id="card" aria-live="polite"></aside>
+<script type="application/json" id="contract">{"_note":"Exported 2026-10-20 from a finished discourse-lens map (the app, not the skill). Metadata, topic labels, 2D placements and extracted claims only; no article text. Reference output for the skill prototype to reproduce or beat. Only articles placed on the map are included.","topic":"jevons paradox and energy efficiency","article_count":52,"clusters":[{"cluster_id":0,"label":"Jevons paradox explained","description":"General explainers and policy-oriented analyses of how efficiency gains can raise total resource consumption, with historical context and implications for sustainability and economic growth.","article_count":19,"terms":[["jevons",0.026721],["paradox",0.023089],["technological",0.008423],["policy",0.00673],["global",0.006279],["implications",0.005539],["analysis",0.004811],["resource consumption",0.004627],["scale",0.004582],["economic growth",0.004506]]},{"cluster_id":1,"label":"Rebound effect economics","description":"Articles defining direct and indirect rebound effects and weighing the evidence on how much efficiency savings are eroded by behavior and economic responses.","article_count":8,"terms":[["policy",0.020102],["jevons",0.01417],["economic growth",0.01188],["paradox",0.01166],["direct",0.011203],["ecological",0.010082],["technological",0.009803],["energy economics",0.009491],["evidence",0.009472],["energy use",0.009159]]},{"cluster_id":2,"label":"Efficiency as climate strategy","description":"Institutional reports from agencies and think tanks arguing efficiency is the fastest, cheapest route to decarbonization, alongside renewables and electrification.","article_count":8,"terms":[["global",0.016909],["measures",0.013467],["renewables",0.012177],["intensity",0.010575],["year",0.009971],["heat",0.009829],["electricity",0.009702],["electrification",0.009235],["climate",0.009036],["zero",0.00876]]},{"cluster_id":3,"label":"Consumer efficiency basics","description":"Introductory guides defining energy efficiency and offering practical advice, standards, and Energy Star-type tips for saving energy and money in homes and buildings.","article_count":6,"terms":[["information",0.017699],["heat",0.014934],["electric",0.013716],["reducing",0.012799],["improving",0.011855],["energy star",0.011204],["water",0.010186],["energy use",0.010059],["standards",0.009571],["save",0.009507]]},{"cluster_id":4,"label":"Jevons and AI economics","description":"Pieces prompted by DeepSeek arguing cheaper computing and AI will increase demand, drawing on historical technology examples to explain why efficiency spurs usage.","article_count":4,"terms":[["jevons",0.050166],["paradox",0.036998],["computing",0.028515],["occupations",0.017329],["applications",0.014354],["processing",0.013617],["brynjolfsson",0.011857],["food",0.011754],["technological",0.010625],["increased demand",0.010569]]},{"cluster_id":5,"label":"AI's environmental footprint","description":"Critical takes questioning whether Jevons paradox applies to AI, examining data centers, hardware, energy and water use, and the polarized environmental debate.","article_count":3,"terms":[["hardware",0.008646],["direct",0.008619],["jevons",0.008537],["paradox",0.008043],["data centers",0.00782],["model",0.007271],["usage",0.00694],["environment",0.006918],["google",0.00647],["companies",0.006193]]}],"articles":[{"id":"e535e0dd2e09ab1b","url":"https://en.wikipedia.org/wiki/Jevons_paradox","domain":"en.wikipedia.org","title":"Jevons paradox - Wikipedia","publish_date":"2004-09-15","x":0.2886904180049896,"y":-10.501059532165527,"cluster_id":0},{"id":"198efba2d31ed4c9","url":"https://news.northeastern.edu/2025/02/07/jevons-paradox-ai-future/","domain":"news.northeastern.edu","title":"What is Jevons Paradox? And why it may — or may not — predict AI’s future","publish_date":"2025-02-07","x":-3.1808125972747803,"y":-15.08942985534668,"cluster_id":5},{"id":"27e43e9bae10a117","url":"https://www.greenchoices.org/news/blog-posts/the-jevons-paradox-when-efficiency-leads-to-increased-consumption","domain":"www.greenchoices.org","title":"The Jevons Paradox: When Efficiency Leads to Increased Consumption – Green Choices","publish_date":"2023-07-12","x":-0.9533559083938599,"y":-11.985008239746094,"cluster_id":0},{"id":"591278a2fa37869a","url":"https://en.wikipedia.org/wiki/The_Coal_Question","domain":"en.wikipedia.org","title":"The Coal Question - Wikipedia","publish_date":"2006-06-14","x":2.5199737548828125,"y":-12.497170448303223,"cluster_id":0},{"id":"432077581f40f7cb","url":"https://www.cio.com/article/247214/cloud-computing-has-its-jevons-moment.html","domain":"www.cio.com","title":"Cloud computing has its ‘Jevons Moment’","publish_date":"2015-06-11","x":-1.7847671508789062,"y":-14.006148338317871,"cluster_id":4},{"id":"32ccdc382393a135","url":"https://ohmyecon.org/journal/jevons-paradox-the-unintended-consequence-of-efficiency","domain":"ohmyecon.org","title":"Jevons Paradox: The Unintended Consequence of Efficiency — OhMyEcon","publish_date":"2025-03-26","x":-0.43354862928390503,"y":-13.429137229919434,"cluster_id":0},{"id":"454fef2cc7c55716","url":"https://en.wikipedia.org/wiki/William_Stanley_Jevons","domain":"en.wikipedia.org","title":"William Stanley Jevons - Wikipedia","publish_date":"2003-04-07","x":1.128747820854187,"y":-12.310279846191406,"cluster_id":-1},{"id":"50bb5547d695eaf8","url":"https://geoexpro.com/jevons-paradox/","domain":"geoexpro.com","title":"Jevons paradox - GeoExpro","publish_date":"2024-11-27","x":4.1507568359375,"y":-11.434279441833496,"cluster_id":0},{"id":"a5fd7c7199024da6","url":"https://www.ricklindquist.com/blog/jevons-paradox","domain":"www.ricklindquist.com","title":"What is Jevons paradox? — Rick Lindquist","publish_date":"2025-12-05","x":-3.0377368927001953,"y":-13.872428894042969,"cluster_id":4},{"id":"e26bbc229942e899","url":"https://tinycomputers.io/posts/jevons-paradox.html","domain":"tinycomputers.io","title":"Jevons Paradox","publish_date":"2025-04-15","x":-1.3406394720077515,"y":-13.380971908569336,"cluster_id":4},{"id":"4533db83111dad98","url":"https://economicsfromthetopdown.com/2024/05/18/a-tour-of-the-jevons-paradox-how-energy-efficiency-backfires/","domain":"economicsfromthetopdown.com","title":"A Tour of the Jevons Paradox: How Energy Efficiency Backfires – Economics from the Top Down","publish_date":"2024-05-18","x":1.8016111850738525,"y":-11.701616287231445,"cluster_id":0},{"id":"9b5f58c6971ffd53","url":"https://www.npr.org/sections/planet-money/2025/02/04/g-s1-46018/ai-deepseek-economics-jevons-paradox","domain":"www.npr.org","title":"Why the AI world is suddenly obsessed with a 160-year-old economics paradox","publish_date":"2025-02-04","x":-2.268458843231201,"y":-12.909899711608887,"cluster_id":4},{"id":"85141bef8bb17318","url":"https://en.wikipedia.org/wiki/Rebound_effect_(conservation)","domain":"en.wikipedia.org","title":"Rebound effect (conservation) - Wikipedia","publish_date":"2007-03-31","x":2.1225407123565674,"y":-8.657750129699707,"cluster_id":1},{"id":"901c3a5af8390dfb","url":"https://ui.adsabs.harvard.edu/abs/2000EnPol..28..389A/abstract","domain":"ui.adsabs.harvard.edu","title":"Energy efficiency and consumption — the rebound effect — a survey","publish_date":"2000-01-01","x":1.6154067516326904,"y":-7.946721076965332,"cluster_id":1},{"id":"ae52c2880556e492","url":"https://peri.umass.edu/publication/energy-efficiency-and-economy-wide-rebound-effects-a-review-of-the-evidence-and-its-implications/","domain":"peri.umass.edu","title":"Energy Efficiency and Economy-wide Rebound Effects: A Review of the Evidence and Its Implications","publish_date":"2021-04-07","x":0.9692190289497375,"y":-8.247299194335938,"cluster_id":1},{"id":"0f4a0e7aa31b7a6b","url":"https://ukerc.ac.uk/project/the-rebound-effect-report/","domain":"ukerc.ac.uk","title":"The rebound effect report","publish_date":"2007-10-01","x":1.0356364250183105,"y":-9.063124656677246,"cluster_id":1},{"id":"b12592e6b668f976","url":"https://ideas.repec.org/a/eee/enepol/v37y2009i4p1456-1469.html","domain":"ideas.repec.org","title":"Jevons' Paradox revisited: The evidence for backfire from im","publish_date":"2009-02-02","x":1.2827730178833008,"y":-10.014394760131836,"cluster_id":1},{"id":"32069ba9f5bbaee8","url":"https://www.frontiersin.org/journals/energy-research/articles/10.3389/fenrg.2018.00026/full","domain":"www.frontiersin.org","title":"Frontiers | Unraveling the Complexity of the Jevons Paradox: The Link Between Innovation, Efficiency, and Sustainability","publish_date":"2018-04-04","x":0.584506094455719,"y":-11.377634048461914,"cluster_id":0},{"id":"1b7cd48a7ead7e03","url":"https://www.inscc.utah.edu/~tgarrett/jevons-paradox.html","domain":"www.inscc.utah.edu","title":null,"publish_date":"2012-01-03","x":2.317321300506592,"y":-10.737764358520508,"cluster_id":0},{"id":"de2fb120e1adf5ab","url":"https://climate.sustainability-directory.com/question/what-is-the-jevons-paradox-in-sustainability/","domain":"climate.sustainability-directory.com","title":"What Is the Jevons Paradox in Sustainability? → Question","publish_date":"2025-03-28","x":-1.1487308740615845,"y":-11.242741584777832,"cluster_id":0},{"id":"222f5dc8fd36d5bb","url":"https://www.solar.com/learn/the-efficiency-paradox/","domain":"www.solar.com","title":"Jevons Energy Efficiency Paradox","publish_date":"2022-08-16","x":2.067563533782959,"y":-9.399688720703125,"cluster_id":1},{"id":"c20b45a9c4cf76fd","url":"https://blog.gorozen.com/blog/dr-jevons-paradox-energy-demand","domain":"blog.gorozen.com","title":"Jevons Paradox: Improved Energy Efficiency Increases Demand - Let's Discuss","publish_date":"2023-12-14","x":4.187994480133057,"y":-10.506056785583496,"cluster_id":0},{"id":"bde9624611ab1627","url":"https://rmi.org/blog_jevons_paradox/","domain":"rmi.org","title":"Jevons Paradox: The Debate That Just Won't Die - RMI","publish_date":"2012-03-20","x":3.1377406120300293,"y":-10.120780944824219,"cluster_id":0},{"id":"f70ec6de687ee5d1","url":"https://arxiv.org/html/2501.16548","domain":"arxiv.org","title":"From Efficiency Gains to Rebound Effects: The Problem of Jevons’ Paradox in AI’s Polarized Environmental Debate","publish_date":"2011-03-11","x":-2.216308832168579,"y":-15.855177879333496,"cluster_id":5},{"id":"2cfb56012d863869","url":"https://www.rethinkx.com/blog/rethinking-jevons-paradox","domain":"www.rethinkx.com","title":"Rethinking the Jevons Paradox: why more clean energy efficiency is good for the environment","publish_date":"2022-02-07","x":0.27006641030311584,"y":-12.957108497619629,"cluster_id":0},{"id":"52d821100556651a","url":"https://fee.org/articles/the-jevons-paradox-and-the-green-new-deal/","domain":"fee.org","title":"The Jevons Paradox and the Green New Deal","publish_date":"2024-02-06","x":1.3863369226455688,"y":-13.440876007080078,"cluster_id":0},{"id":"3029abcbc5e1eae8","url":"https://www.newyorker.com/magazine/2010/12/20/the-efficiency-dilemma","domain":"www.newyorker.com","title":"The Efficiency Dilemma","publish_date":"2010-12-20","x":3.017146587371826,"y":-11.295737266540527,"cluster_id":0},{"id":"c2313e97ec6b5963","url":"https://pollution.sustainability-directory.com/question/what-are-real-world-examples-of-jevons-paradox/","domain":"pollution.sustainability-directory.com","title":"What Are Real World Examples of Jevons Paradox? → Question","publish_date":"2025-12-15","x":-0.41319572925567627,"y":-10.819300651550293,"cluster_id":0},{"id":"c818641c9a462910","url":"https://holistiquetraining.com/en/news/what-is-jevons-paradox-a-comprehensive-guide","domain":"holistiquetraining.com","title":"What is Jevons Paradox? A Comprehensive Guide","publish_date":"2025-08-06","x":-1.6402884721755981,"y":-12.151349067687988,"cluster_id":0},{"id":"60f8fb0137f9ba13","url":"https://energy.sustainability-directory.com/term/jevons-paradox/","domain":"energy.sustainability-directory.com","title":"Jevons Paradox → Term","publish_date":"2025-11-22","x":-0.18924346566200256,"y":-12.33292007446289,"cluster_id":0},{"id":"6ac58ab449132bc2","url":"https://climate.sustainability-directory.com/term/rebound-effect-jevons-paradox/","domain":"climate.sustainability-directory.com","title":"Rebound Effect Jevons Paradox → Term","publish_date":"2025-04-14","x":-0.2543841004371643,"y":-9.328045845031738,"cluster_id":1},{"id":"b2dc975a033f1ae1","url":"https://illuminem.com/illuminemvoices/jevons-paradox-and-the-future-of-ai-infrastructure-a-misapplied-economic-theory","domain":"illuminem.com","title":"Jevons' paradox and the future of AI infrastructure: a misapplied economic theory? | illuminem","publish_date":"2025-02-05","x":-2.211238384246826,"y":-14.795666694641113,"cluster_id":5},{"id":"4e660a5b119f0e3a","url":"https://www.transparency.travel/insight/jevons-paradox-why-more-efficiency-wont-save-us","domain":"www.transparency.travel","title":"Jevons’ Paradox: Why More Efficiency Won’t Save Us — Transparency.Travel","publish_date":"2025-01-30","x":-3.879397392272949,"y":-14.297043800354004,"cluster_id":-1},{"id":"4490f0317f7f9256","url":"https://www.numberanalytics.com/blog/jevons-paradox-ultimate-guide","domain":"www.numberanalytics.com","title":"Jevons Paradox: The Rebound Effect","publish_date":"2025-06-10","x":-1.0876067876815796,"y":-10.337573051452637,"cluster_id":0},{"id":"8fb5fadf26a9344e","url":"https://publicservicesalliance.org/2025/01/29/jevons-paradox-and-efficiencies-of-ai-processes/","domain":"publicservicesalliance.org","title":"Jevon’s Paradox and Efficiencies of AI processes","publish_date":"2025-01-29","x":-0.933964729309082,"y":-14.617496490478516,"cluster_id":-1},{"id":"9a760002f5301121","url":"https://www.timpaul.co.uk/posts/automation-and-the-jevons-paradox/","domain":"www.timpaul.co.uk","title":"Automation and the Jevons paradox","publish_date":"2024-02-28","x":-3.5489590167999268,"y":-13.171343803405762,"cluster_id":-1},{"id":"da099cf0e0ce72d0","url":"https://www.iea.org/energy-system/energy-efficiency-and-demand/energy-efficiency","domain":"www.iea.org","title":"Energy Efficiency - Energy System - IEA","publish_date":"2026-04-14","x":5.902344703674316,"y":-4.582601547241211,"cluster_id":2},{"id":"61d76714a7d5724c","url":"https://www.energystar.gov/about/how-energy-star-protects-environment/energy-efficiency","domain":"www.energystar.gov","title":"Energy Efficiency","publish_date":"2024-11-01","x":6.834052562713623,"y":-7.650823593139648,"cluster_id":3},{"id":"fae5cea279d679e3","url":"https://science.time.com/2010/09/30/energy-will-efficiency-lead-to-more-consumption/","domain":"science.time.com","title":"Energy: Will Efficiency Lead to More Consumption?","publish_date":"2010-09-30","x":4.23884916305542,"y":-8.729183197021484,"cluster_id":0},{"id":"004d9f8c63834c7e","url":"https://www.eesi.org/topics/energy-efficiency/description","domain":"www.eesi.org","title":"Energy Efficiency","publish_date":"2024-10-14","x":5.929344177246094,"y":-6.4873785972595215,"cluster_id":3},{"id":"78582ae21dd548db","url":"https://www.rff.org/publications/explainers/energy-efficiency-101/","domain":"www.rff.org","title":"Energy Efficiency 101","publish_date":"2020-06-17","x":5.607604026794434,"y":-7.520043849945068,"cluster_id":3},{"id":"7665a4d3d14d4d7f","url":"https://www.pearson.com/channels/microeconomics/asset/17823661/why-can-improvements-in-energy-efficiency-som","domain":"www.pearson.com","title":"Why can improvements in energy efficiency sometimes lead to an in... | Study Prep in Pearson+","publish_date":"2025-05-01","x":3.0085091590881348,"y":-8.05860710144043,"cluster_id":1},{"id":"6f87267bd801815c","url":"https://en.wikipedia.org/wiki/Efficient_energy_use","domain":"en.wikipedia.org","title":"Efficient energy use - Wikipedia","publish_date":"2007-06-25","x":5.07559061050415,"y":-6.100993633270264,"cluster_id":2},{"id":"22e160a6ef4be4db","url":"https://www.epa.gov/statelocalenergy/local-energy-efficiency-benefits-and-opportunities","domain":"www.epa.gov","title":"Local Energy Efficiency Benefits and Opportunities | US EPA","publish_date":"2017-07-05","x":7.4931488037109375,"y":-6.25509786605835,"cluster_id":3},{"id":"7f83ef8841ce3ed2","url":"https://www.ren21.net/gsr-2020/chapters/chapter_07/chapter_07/","domain":"www.ren21.net","title":"RENEWABLES 2020 GLOBAL STATUS REPORT","publish_date":"2019-05-01","x":6.491130352020264,"y":-4.073552131652832,"cluster_id":2},{"id":"ed173b418600e7f9","url":"https://understand-energy.stanford.edu/energy-resources/renewable-energy/energy-efficiency","domain":"understand-energy.stanford.edu","title":"Energy Efficiency","publish_date":"2012-01-07","x":6.573904514312744,"y":-6.641112327575684,"cluster_id":3},{"id":"00648ba8135602fa","url":"https://www.danfoss.com/en/about-danfoss/insights/energy-efficiency/","domain":"www.danfoss.com","title":"Energy efficiency","publish_date":"2023-07-11","x":7.362306594848633,"y":-4.373795986175537,"cluster_id":2},{"id":"059e790f1a154bdd","url":"https://www.seforall.org/goal-7-targets/energy-efficiency","domain":"www.seforall.org","title":"SDG 7.3 - Energy efficiency","publish_date":"2024-09-20","x":5.346532821655273,"y":-4.684825420379639,"cluster_id":2},{"id":"e1b579202f3189cb","url":"https://www.eea.europa.eu/en/topics/in-depth/energy-efficiency","domain":"www.eea.europa.eu","title":"Energy efficiency","publish_date":"2024-11-04","x":6.00681734085083,"y":-5.6218953132629395,"cluster_id":2},{"id":"3f6be067a355d67e","url":"https://rmi.org/the-importance-of-accelerating-energy-efficiency/","domain":"rmi.org","title":"The Importance of Accelerating Energy Efficiency - RMI","publish_date":"2025-04-04","x":6.67186975479126,"y":-5.215438365936279,"cluster_id":2},{"id":"46c5473358069cbc","url":"https://rmi.org/why-efficiency-matters-unlocking-benefits-beyond-climate-for-all/","domain":"rmi.org","title":"Why Efficiency Matters: Unlocking Benefits Beyond Climate for All - RMI","publish_date":"2024-08-23","x":7.624492168426514,"y":-5.255627632141113,"cluster_id":2},{"id":"e417d88df1bab1c8","url":"https://www.mdcleanenergy.org/resources/energy-awareness/save-money-education/why-efficiency-matters/","domain":"www.mdcleanenergy.org","title":"Why Energy Efficiency Measures Matter - MD Clean Energy","publish_date":"2026-04-09","x":7.653059959411621,"y":-6.963286876678467,"cluster_id":3}],"propositions":[{"position":0,"statement":"Efficiency gains can produce rebound effects that raise total resource consumption, so efficiency can increase rather than reduce overall use (the Jevons paradox).","stances":[{"article_id":"198efba2d31ed4c9","stance":"agrees","claim":"Jevons Paradox holds that efficiency makes a resource cheaper and so raises its total consumption, as with British coal use tripling by 1900."},{"article_id":"1b7cd48a7ead7e03","stance":"agrees","claim":"Increasing energy efficiency may drive growth in global energy consumption and emissions, contrary to common expectations."},{"article_id":"27e43e9bae10a117","stance":"agrees","claim":"Efficiency improvements can increase consumption through rebound effects because lower costs make resource use more attractive."},{"article_id":"2cfb56012d863869","stance":"qualifies","claim":"The Jevons paradox occurs only when a technology makes an existing process more efficient and demand is highly price-sensitive."},{"article_id":"32ccdc382393a135","stance":"agrees","claim":"Jevons Paradox holds that efficiency gains lower the cost of a resource, which raises demand and can increase total consumption."},{"article_id":"4490f0317f7f9256","stance":"agrees","claim":"Jevons Paradox says efficiency gains reduce a resource's cost, making it more attractive and increasing demand and total consumption."},{"article_id":"4533db83111dad98","stance":"agrees","claim":"Efficiency gains tend to increase collective resource consumption because they cheapen services, so people use more of them."},{"article_id":"454fef2cc7c55716","stance":"agrees","claim":"In The Coal Question (1865), Jevons argued that increased energy production efficiency leads to more consumption, a view now known as the Jevons paradox."},{"article_id":"4e660a5b119f0e3a","stance":"agrees","claim":"When a resource becomes more efficient to use, total consumption often rises rather than falls, as in coal engines, cars and AI."},{"article_id":"50bb5547d695eaf8","stance":"agrees","claim":"Jevons paradox operates globally: since 1990 energy efficiency rose 36% while total energy consumption rose 63%."},{"article_id":"901c3a5af8390dfb","stance":"qualifies","claim":"For the end uses with available US studies, estimates of the rebound effect range from very low to moderate."},{"article_id":"a5fd7c7199024da6","stance":"agrees","claim":"Jevons argued that improved efficiency lowers costs and prices, which drives higher demand and increases total consumption."},{"article_id":"b2dc975a033f1ae1","stance":"qualifies","claim":"Jevons' paradox is far from a deterministic law, and market saturation and capital limits can dampen or eliminate the rebound effect in high-tech sectors."},{"article_id":"bde9624611ab1627","stance":"disputes","claim":"Amory Lovins argues David Owen's rebound claims about energy efficiency are counterfactual, discredited, and were rebutted by several experts."},{"article_id":"c2313e97ec6b5963","stance":"agrees","claim":"Jevons Paradox holds that efficiency gains lower resource costs and can raise total consumption, as Jevons saw with coal and steam engines."},{"article_id":"c818641c9a462910","stance":"agrees","claim":"Jevons Paradox says efficiency improvements lower costs and stimulate demand, which can increase total resource consumption instead of conserving it."},{"article_id":"de2fb120e1adf5ab","stance":"agrees","claim":"The Jevons Paradox says efficiency gains can paradoxically increase total resource consumption, as with coal use after more efficient steam engines."},{"article_id":"e26bbc229942e899","stance":"agrees","claim":"The Jevons Paradox says energy efficiency improvements can increase rather than decrease energy consumption."}]},{"position":1,"statement":"Jevons paradox applies to AI efficiency gains such as DeepSeek, so more efficient AI will increase total use of chips, data centers and energy.","stances":[{"article_id":"198efba2d31ed4c9","stance":"agrees","claim":"Piao argues efficiency unlocks new demand, so cheaper AI will drive GPU sales and energy use."},{"article_id":"8fb5fadf26a9344e","stance":"agrees","claim":"Jevons' Paradox likely applies to DeepSeek's efficiency gains, so greater AI efficiency will drive greater use and keep GPUs and data centers critically important."},{"article_id":"9b5f58c6971ffd53","stance":"agrees","claim":"Microsoft CEO Satya Nadella invoked Jevons paradox to argue that more efficient AI, as shown by DeepSeek, will see its use skyrocket."},{"article_id":"b2dc975a033f1ae1","stance":"qualifies","claim":"Efficiency gains in AI may not guarantee exponential demand for chips, GPUs and data centers."},{"article_id":"f70ec6de687ee5d1","stance":"agrees","claim":"Jevons' Paradox applies to AI: efficiency gains may spur increased overall consumption, producing rebound effects that offset the environmental benefits of efficiency."}]},{"position":2,"statement":"Efficiency alone is insufficient for sustainability and must be complemented by policies or behavioral measures addressing rebound.","stances":[{"article_id":"004d9f8c63834c7e","stance":"agrees","claim":"Research shows 30 percent of the potential energy savings of efficient technologies is lost to social, cultural and economic factors, so human behavior must be addressed."},{"article_id":"27e43e9bae10a117","stance":"agrees","claim":"Relying solely on efficiency is insufficient for environmental goals and must be complemented by measures addressing rebound."},{"article_id":"32069ba9f5bbaee8","stance":"agrees","claim":"Sustainability cannot be achieved by technological innovation alone and requires continuous institutional and behavioral adjustment."},{"article_id":"4490f0317f7f9256","stance":"agrees","claim":"Policymakers should account for potential offsetting increases in consumption when developing resource management strategies."},{"article_id":"4e660a5b119f0e3a","stance":"agrees","claim":"Without conscious intervention efficiency leads to more consumption, so the key question is how to make efficiency actually reduce consumption."},{"article_id":"60f8fb0137f9ba13","stance":"agrees","claim":"Technology alone cannot solve resource scarcity and ecological damage without mindful policies and interventions."},{"article_id":"6ac58ab449132bc2","stance":"agrees","claim":"Technology alone cannot guarantee absolute reductions in resource use; human behavior and markets shape outcomes."},{"article_id":"8fb5fadf26a9344e","stance":"agrees","claim":"Efficiency alone may not reduce total resource consumption, so policies such as carbon taxes or caps may be needed."},{"article_id":"de2fb120e1adf5ab","stance":"agrees","claim":"Efficiency alone is not a silver bullet for sustainability and could even worsen the problems it targets."},{"article_id":"e535e0dd2e09ab1b","stance":"agrees","claim":"Pairing efficiency gains with policies that raise cost of use, such as cap and trade or green taxes, can control the rebound."},{"article_id":"f70ec6de687ee5d1","stance":"agrees","claim":"Technical efficiency alone cannot ensure net reductions in AI's environmental harm; its impact also depends on business incentives, market logics, governance, policymaking and social norms."}]},{"position":3,"statement":"The magnitude of the rebound effect is contested and difficult to measure.","stances":[{"article_id":"1b7cd48a7ead7e03","stance":"agrees","claim":"The total magnitude of rebound or backfire is contentious and nearly impossible to calculate because efficiency effects propagate through the whole global economy."},{"article_id":"222f5dc8fd36d5bb","stance":"agrees","claim":"The rebound effect is real, but its magnitude is debated, ranging from super conservation to backfire."},{"article_id":"32069ba9f5bbaee8","stance":"agrees","claim":"Understanding the Jevons Paradox requires complexity science, not reductionism, because a system changes its identity in response to innovation, which makes the rebound effect hard to quantify."},{"article_id":"85141bef8bb17318","stance":"agrees","claim":"Economists agree the rebound effect exists but disagree about its magnitude and importance in real-world situations."},{"article_id":"ae52c2880556e492","stance":"qualifies","claim":"Economy-wide rebound effects may erode more than half of the expected energy savings from improved energy efficiency."},{"article_id":"c2313e97ec6b5963","stance":"agrees","claim":"Rebound effects come in direct, indirect and economy-wide forms, and the economy-wide effect is the hardest to measure."},{"article_id":"e535e0dd2e09ab1b","stance":"agrees","claim":"Economists debate the size of the rebound effect and the paradox's relevance to energy conservation."}]},{"position":4,"statement":"LED and other lighting efficiency gains have led to more lighting use that erodes the energy savings.","stances":[{"article_id":"27e43e9bae10a117","stance":"agrees","claim":"Examples include vehicle miles, LED lighting and data centres, where overall consumption has not fallen despite efficiency gains."},{"article_id":"b2dc975a033f1ae1","stance":"agrees","claim":"Cars and lighting show the paradox, as efficiency gains encouraged more driving and wider lighting use."},{"article_id":"c2313e97ec6b5963","stance":"agrees","claim":"LED lighting is an example where cheaper lighting leads people to light more spaces, eroding expected energy savings."},{"article_id":"de2fb120e1adf5ab","stance":"agrees","claim":"LED lighting illustrates the paradox: cheaper lighting can lead to more lights and longer use."},{"article_id":"fae5cea279d679e3","stance":"agrees","claim":"A study of 300 years of lighting use in Britain found people spend roughly the same share of GDP, about 0.72%, on lighting regardless of efficiency."}]},{"position":5,"statement":"Energy efficiency is among the cheapest, fastest and most cost-effective ways to cut emissions and energy costs.","stances":[{"article_id":"004d9f8c63834c7e","stance":"agrees","claim":"Energy efficiency is the cheapest and often most immediate way to reduce fossil fuel use, while cutting emissions, energy imports and costs."},{"article_id":"00648ba8135602fa","stance":"agrees","claim":"Energy efficiency is the quickest and most affordable way to decarbonize the economy, and the IEA says it can deliver a third of emission reductions needed for 2050 net zero."},{"article_id":"22e160a6ef4be4db","stance":"agrees","claim":"Energy efficiency is one of the fastest, most cost-effective ways to save money, cut emissions, create jobs and meet growing energy demand."},{"article_id":"3029abcbc5e1eae8","stance":"agrees","claim":"Federal officials such as Steven Chu portray energy efficiency as a cost-free way to cut oil use, emissions and consumer spending without sacrifice."},{"article_id":"3f6be067a355d67e","stance":"agrees","claim":"Energy efficiency is crucial for the energy transition because it eases energy security concerns, cuts costs, improves competitiveness and reduces grid investment needs."},{"article_id":"46c5473358069cbc","stance":"agrees","claim":"Energy efficiency makes climate action faster, cheaper and more equitable, since today's energy system wastes two-thirds of global energy production, costing about $4.5 trillion yearly."},{"article_id":"61d76714a7d5724c","stance":"agrees","claim":"Energy efficiency is among the easiest and most cost-effective ways to cut energy waste, bills and air pollution."},{"article_id":"78582ae21dd548db","stance":"agrees","claim":"Energy efficiency is a win-win that reduces energy use, emissions and customer costs, despite sometimes higher upfront costs."},{"article_id":"bde9624611ab1627","stance":"agrees","claim":"Efficient energy use is the most important and economical way to provide future energy services, and the US could run its economy on 40 percent less primary energy by 2050."},{"article_id":"da099cf0e0ce72d0","stance":"agrees","claim":"Energy efficiency is the 'first fuel' of clean energy transitions, offering quick, cost-effective CO2 mitigation, lower bills and better energy security."},{"article_id":"ed173b418600e7f9","stance":"agrees","claim":"Efficiency is often the cheapest and most effective way to meet energy service demand while reducing climate impact."}]},{"position":6,"statement":"Efficiency reduces energy demand, easing grid expansion needs and helping integrate renewables.","stances":[{"article_id":"00648ba8135602fa","stance":"agrees","claim":"Reducing energy demand lessens the need to expand the grid and accelerates the switch to renewables."},{"article_id":"22e160a6ef4be4db","stance":"agrees","claim":"Efficiency lowers electricity demand, reducing the need for new generation and transmission and hedging against fuel price volatility."},{"article_id":"3f6be067a355d67e","stance":"agrees","claim":"Rising demand from electrification, data centers and cooling means utilities must prioritize efficiency to avoid costly grid expansion."},{"article_id":"7f83ef8841ce3ed2","stance":"agrees","claim":"Efficiency measures facilitate renewable deployment, so integrated strategies are the most effective approach."},{"article_id":"e417d88df1bab1c8","stance":"agrees","claim":"Energy efficiency lowers household energy bills and reduces strain on the grid, helping prevent blackouts at peak times."}]},{"position":7,"statement":"Global energy efficiency progress is falling short of the pace needed for climate goals.","stances":[{"article_id":"00648ba8135602fa","stance":"agrees","claim":"Leaders' thinking about energy efficiency is stuck in the fossil fuel era, which jeopardizes global climate goals."},{"article_id":"059e790f1a154bdd","stance":"agrees","claim":"The world is not yet on track for SDG 7.3, as energy intensity improved only 1.8 percent annually in 2010-2020."},{"article_id":"3f6be067a355d67e","stance":"agrees","claim":"Efficiency improvements fell to about 1 percent in 2024 instead of doubling to 4 percent as pledged at COP28."},{"article_id":"da099cf0e0ce72d0","stance":"qualifies","claim":"Efficiency is the largest single measure for avoiding energy demand in the Net Zero Scenario, with global energy intensity falling about 4% per year this decade."}]},{"position":8,"statement":"Jevons argued in The Coal Question that coal's finiteness and rising demand would limit British prosperity.","stances":[{"article_id":"454fef2cc7c55716","stance":"agrees","claim":"Because of The Coal Question, Jevons is regarded as the first economist of standing to develop an ecological perspective on the economy."},{"article_id":"591278a2fa37869a","stance":"agrees","claim":"Jevons argued in The Coal Question that Britain's global supremacy was transitory because its primary energy resource, coal, is finite."}]},{"position":9,"statement":"A Jevons-style demand increase may raise labor demand in some occupations rather than cause mass job loss from AI.","stances":[{"article_id":"9a760002f5301121","stance":"disputes","claim":"Efficiency gains from automation may not free up workers for more valuable work, since employers may cut pay, hiring or add low-value work instead."},{"article_id":"9b5f58c6971ffd53","stance":"agrees","claim":"Jevons paradox is also cited as a reason AI may create more jobs in some occupations rather than cause mass layoffs."},{"article_id":"a5fd7c7199024da6","stance":"qualifies","claim":"Coders, translators and radiologists may be occupations where AI productivity gains coincide with growing demand, whereas farming shows demand does not always explode."}]},{"position":10,"statement":"Efficiency measures delivered large energy and emissions savings historically and can cut future energy needs substantially.","stances":[{"article_id":"46c5473358069cbc","stance":"agrees","claim":"Efficiency measures already saved about 15 percent of energy bills in 2022 and could cut global energy costs 20-25 percent by 2030."},{"article_id":"6f87267bd801815c","stance":"agrees","claim":"Energy efficiency avoided more energy consumption in IEA member countries during 1974-2010 than any single fuel supplied."},{"article_id":"ed173b418600e7f9","stance":"agrees","claim":"Efficiency accounted for 82% of global carbon emissions reductions between 2010 and 2022 and met 67% of US energy demand growth since 1950."}]}]}</script>
+<script>
+(function(){
+"use strict";
+const C=JSON.parse(document.getElementById("contract").textContent);
+const SVGNS="http://www.w3.org/2000/svg";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const el=(tag,attrs,parent)=>{const e=document.createElementNS(SVGNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;};
+
+// ---- data ----
+const clusters=C.clusters||[], arts=C.articles||[], props=C.propositions||[];
+const cidx=new Map(clusters.map((c,i)=>[c.cluster_id,i]));
+const U=clusters.length; // index used for "unclustered"
+const ci=a=>cidx.has(a.cluster_id)?cidx.get(a.cluster_id):U;
+const color=i=>i>=U?"var(--cu)":"var(--c"+(i%8)+")";
+const cname=i=>i>=U?"Unclustered":clusters[i].label;
+const byId=new Map(arts.map(a=>[a.id,a]));
+const stancesOf=new Map(arts.map(a=>[a.id,[]]));
+props.forEach(p=>p.stances.forEach(s=>{if(stancesOf.has(s.article_id))stancesOf.get(s.article_id).push({p,s});}));
+const titleOf=a=>a.title||a.domain;
+const termText=t=>Array.isArray(t)?t[0]:t;
+
+// ---- layout (design.md 4.3): deterministic, ignores any x/y in the contract ----
+function fnv(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function rng(seed){let a=seed;return()=>{a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+function layout(){
+  const t0=performance.now(), n=U;
+  const size=new Array(n+1).fill(0); arts.forEach(a=>size[ci(a)]++);
+  // topic relatedness: shared propositions, normalised; clusters[].related overrides a pair
+  const R=[...Array(n)].map(()=>new Array(n).fill(0));
+  props.forEach(p=>{const s=[...new Set(p.stances.map(x=>byId.get(x.article_id)).filter(Boolean).map(ci).filter(i=>i<n))];
+    for(let i=0;i<s.length;i++)for(let j=i+1;j<s.length;j++){R[s[i]][s[j]]++;R[s[j]][s[i]]++;}});
+  let mx=0;R.forEach(r=>r.forEach(v=>mx=Math.max(mx,v)));
+  if(mx>0)R.forEach(r=>r.forEach((v,j)=>r[j]=v/mx));
+  clusters.forEach((c,i)=>(c.related||[]).forEach(r=>{const j=cidx.get(r.cluster_id);if(j!=null&&j!==i){R[i][j]=R[j][i]=r.strength;}}));
+  const rad=size.map(k=>12*Math.sqrt(Math.max(k,1))+10);
+  // circle order maximising adjacent relatedness (brute force up to 8 topics, greedy beyond)
+  let order=[...Array(n).keys()];
+  const score=o=>{let s=0;for(let k=0;k<o.length;k++)s+=R[o[k]][o[(k+1)%o.length]];return s;};
+  if(n>3&&n<=8){let best=-1,bo=order;
+    const perm=(pre,rest)=>{if(!rest.length){const o=[0,...pre],s=score(o);if(s>best+1e-9){best=s;bo=o;}return;}
+      rest.forEach((v,k)=>perm([...pre,v],rest.filter((_,m)=>m!==k)));};
+    perm([],order.slice(1));order=bo;}
+  else if(n>8){const o=[0],left=new Set(order.slice(1));while(left.size){const l=o[o.length-1];let b=-1,bv=-1;left.forEach(v=>{if(R[l][v]>bv){bv=R[l][v];b=v;}});o.push(b);left.delete(b);}order=o;}
+  const circ=order.reduce((s,i)=>s+2*rad[i]+40,0), Rc=n>1?Math.max(circ/(2*Math.PI),Math.max(...rad)*1.2):0;
+  const A=new Array(n);
+  order.forEach((i,k)=>{const th=-Math.PI/2+2*Math.PI*k/n;A[i]=[Rc*Math.cos(th),Rc*Math.sin(th)];});
+  // spring pass: related pairs pulled toward touching, unrelated pushed apart, never overlapping
+  for(let it=0;it<240;it++){for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
+    const dx=A[j][0]-A[i][0],dy=A[j][1]-A[i][1],d=Math.hypot(dx,dy)||1e-6,min=rad[i]+rad[j]+24;
+    const target=min*(1+1.1*(1-R[i][j]));let f=(d-target)*0.02;if(d<min)f=(d-min)*0.5;
+    const ux=dx/d*f,uy=dy/d*f;A[i][0]+=ux;A[i][1]+=uy;A[j][0]-=ux;A[j][1]-=uy;}}
+  // unclustered zone: centre-bottom, below the topics
+  let maxY=0,cx=0;for(let i=0;i<n;i++){maxY=Math.max(maxY,A[i][1]+rad[i]);cx+=A[i][0]/n;}
+  A[U]=[cx,n?maxY+rad[U]+40:0];
+  // point simulation
+  const nodes=arts.map(a=>{const r=rng(fnv(a.id)),i=ci(a),q=r()*Math.PI*2,d=r()*rad[i]*0.8;
+    const b=a.also_cluster_id!=null&&cidx.has(a.also_cluster_id)&&cidx.get(a.also_cluster_id)!==i?cidx.get(a.also_cluster_id):-1;
+    return{a,i,b,edge:a.fit==="edge",r:4.5+Math.min(3,stancesOf.get(a.id).length*0.75),x:A[i][0]+Math.cos(q)*d,y:A[i][1]+Math.sin(q)*d,vx:0,vy:0};});
+  let alpha=1;
+  for(let t=0;t<300;t++){
+    nodes.forEach(o=>{let tx=A[o.i][0],ty=A[o.i][1];
+      if(o.b>=0){tx=0.6*tx+0.4*A[o.b][0];ty=0.6*ty+0.4*A[o.b][1];}
+      const k=o.edge?0.5:1;o.vx+=(tx-o.x)*0.06*k*alpha;o.vy+=(ty-o.y)*0.06*k*alpha;
+      if(o.edge){const dx=o.x-tx,dy=o.y-ty,d=Math.hypot(dx,dy)||1e-6,ring=rad[o.i]*1.1;o.vx+=dx/d*(ring-d)*0.05*alpha;o.vy+=dy/d*(ring-d)*0.05*alpha;}});
+    for(let p=0;p<nodes.length;p++)for(let q=p+1;q<nodes.length;q++){const u=nodes[p],v=nodes[q];
+      let dx=v.x-u.x,dy=v.y-u.y,d2=dx*dx+dy*dy,m=u.r+v.r+1.5;if(d2>=m*m)continue;
+      let d=Math.sqrt(d2);if(d<1e-6){dx=1e-3*(p-q);dy=1e-3;d=Math.hypot(dx,dy);}
+      const f=(m-d)/d*0.35;u.x-=dx*f;u.y-=dy*f;v.x+=dx*f;v.y+=dy*f;}
+    nodes.forEach(o=>{o.vx*=0.6;o.vy*=0.6;o.x+=o.vx;o.y+=o.vy;});
+    alpha=Math.max(alpha*0.985,0.02);
+  }
+  return{nodes,A,rad,size,R,order,ms:performance.now()-t0};
+}
+const L=layout();
+
+// ---- header ----
+document.title=C.topic+": discourse map";
+$("title").textContent=C.topic;
+(function(){const full=arts.filter(a=>a.read_depth==="full").length,bits=[arts.length+" sources"];
+  if(arts.some(a=>a.read_depth))bits.push(full+" read in full");
+  if(C.queries&&C.queries.length)bits.push(C.queries.length+" searches");
+  bits.push(U+" topics",props.length+" shared claims");
+  const un=L.size[U];if(un)bits.push(un+" unclustered");
+  $("meta").textContent=bits.join(" · ");})();
+
+// ---- state ----
+let sel=null; // selected topic index or null
+const views=["map","claims","sources"];
+function show(v){views.forEach(x=>{$("v-"+x).hidden=x!==v;document.querySelector('nav [data-v="'+x+'"]').setAttribute("aria-selected",x===v);});
+  if(v==="map")drawMap();}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{history.replaceState(null,"","#"+b.dataset.v);show(b.dataset.v);});
+function select(i){sel=(sel===i)?null:i;
+  $("filter").classList.toggle("on",sel!=null);
+  if(sel!=null){$("fname").textContent=cname(sel);$("fsw").style.background=color(sel);}
+  drawMap();drawTopics();drawClaims();drawTable();}
+$("fclear").onclick=()=>select(sel);
+
+// ---- map ----
+let screen=[];
+function drawMap(){
+  const svg=$("map");if(!svg.getBoundingClientRect().width)return;
+  svg.textContent="";
+  const W=svg.getBoundingClientRect().width,narrow=W<560,H=Math.round(narrow?W*1.1:Math.min(620,W*0.68));
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);svg.setAttribute("height",H);
+  const pad=narrow?14:24,top=narrow?44:40;
+  // rotate the whole layout to fit the box (distances unchanged): try 12 angles, keep the largest scale
+  let best=null;
+  for(let k=0;k<12;k++){const th=k*Math.PI/12,c=Math.cos(th),sn=Math.sin(th);let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    const P=L.nodes.map(o=>{const x=o.x*c-o.y*sn,y=o.x*sn+o.y*c;x0=Math.min(x0,x-o.r);x1=Math.max(x1,x+o.r);y0=Math.min(y0,y-o.r);y1=Math.max(y1,y+o.r);return[x,y];});
+    const s=Math.min((W-2*pad)/(x1-x0||1),(H-top-pad)/(y1-y0||1));if(!best||s>best.s+1e-9)best={s,P,x0,x1,y0,y1};}
+  const {s,P,x0,x1,y0,y1}=best,ox=(W-(x1-x0)*s)/2-x0*s,oy=top+((H-top-pad)-(y1-y0)*s)/2-y0*s;
+  screen=L.nodes.map((o,k)=>({o,x:P[k][0]*s+ox,y:P[k][1]*s+oy,r:Math.min(11,Math.max(3,o.r*s))}));
+  const g=el("g",{},svg);
+  screen.forEach(p=>{const c=el("circle",{cx:p.x.toFixed(1),cy:p.y.toFixed(1),r:p.r.toFixed(1),fill:color(p.o.i),class:"pt"},g);
+    if(sel!=null&&p.o.i!==sel&&p.o.b!==sel)c.classList.add("dim");p.el=c;});
+  placeLabels(svg,W,H,narrow);
+  window.__dl.screen=screen.map(p=>({id:p.o.a.id,i:p.o.i,x:p.x,y:p.y,r:p.r}));
+}
+function placeLabels(svg,W,H,narrow){
+  const groups=[];for(let i=0;i<=U;i++){const pts=screen.filter(p=>p.o.i===i);if(pts.length)groups.push({i,pts});}
+  const placed=[],maxW=narrow?118:210;
+  window.__dl.labels=[];
+  groups.forEach(({i,pts})=>{
+    const bx0=Math.min(...pts.map(p=>p.x-p.r)),bx1=Math.max(...pts.map(p=>p.x+p.r)),by0=Math.min(...pts.map(p=>p.y-p.r)),by1=Math.max(...pts.map(p=>p.y+p.r)),cx=(bx0+bx1)/2;
+    const txt=i>=U?"Unclustered ("+pts.length+")":clusters[i].label;
+    const t=el("text",{class:"lbl"+(i>=U?" ulbl":""),"text-anchor":"middle"},svg);
+    const lines=wrap(t,txt,maxW);const lh=14,h=lines.length*lh,w=Math.max(...lines.map(l=>l.w));
+    const cands=[];
+    for(let k=0;k<6;k++){cands.push([cx,by0-6-h-k*lh]);cands.push([cx,by1+4+k*lh]);}
+    cands.push([bx1+6+w/2,(by0+by1)/2-h/2],[bx0-6-w/2,(by0+by1)/2-h/2]);
+    let best=null,bc=1e9;
+    cands.forEach(([x,y],k)=>{x=Math.min(Math.max(x,w/2+4),W-w/2-4);y=Math.min(Math.max(y,4),H-h-2);
+      const box={x0:x-w/2-2,x1:x+w/2+2,y0:y,y1:y+h};
+      if(placed.some(b=>b.x0<box.x1&&box.x0<b.x1&&b.y0<box.y1&&box.y0<b.y1))return;
+      const cover=screen.filter(p=>p.x+p.r>box.x0&&p.x-p.r<box.x1&&p.y+p.r>box.y0&&p.y-p.r<box.y1).length;
+      const lx=(box.x0+box.x1)/2,ly=(box.y0+box.y1)/2;let dOwn=1e9,dOther=1e9;
+      screen.forEach(p=>{const d=Math.hypot(p.x-lx,p.y-ly);if(p.o.i===i)dOwn=Math.min(dOwn,d);else dOther=Math.min(dOther,d);});
+      const c=cover*3+k*0.6+(dOther<dOwn?8:0);if(c<bc){bc=c;best=box;}});
+    if(!best){const y=Math.max(...placed.map(b=>b.y1),0)+2;best={x0:4,x1:8+w,y0:y,y1:y+h};}
+    const tx=(best.x0+best.x1)/2;
+    [...t.childNodes].forEach((ts,k)=>{ts.setAttribute("x",tx);ts.setAttribute("y",best.y0+11+k*lh);});
+    if(sel!=null&&sel!==i)t.classList.add("dim");
+    t.addEventListener("click",e=>{e.stopPropagation();select(i);});
+    placed.push(best);window.__dl.labels.push({i,box:best});
+  });
+}
+function wrap(t,txt,maxW){
+  const words=txt.split(/\s+/),lines=[];let cur="";
+  const ts=el("tspan",{},t);
+  const meas=s=>{ts.textContent=s;return ts.getComputedTextLength();};
+  words.forEach(w=>{const tryS=cur?cur+" "+w:w;if(cur&&meas(tryS)>maxW){lines.push(cur);cur=w;}else cur=tryS;});
+  if(cur)lines.push(cur);t.removeChild(ts);
+  return lines.map(l=>{const s=el("tspan",{},t);s.textContent=l;return{w:s.getComputedTextLength()};});
+}
+function nearest(e,lim){const svg=$("map"),b=svg.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top;
+  let best=null,bd=lim*lim;screen.forEach(p=>{const d=(p.x-x)**2+(p.y-y)**2;if(d<bd){bd=d;best=p;}});return best;}
+let hov=null;
+function hover(p,e){if(hov&&hov!==p)hov.el.classList.remove("hl");hov=p;const tip=$("tip");
+  if(!p){tip.style.display="none";return;}
+  p.el.classList.add("hl");const a=p.o.a;
+  tip.innerHTML="<b>"+esc(titleOf(a))+"</b><span>"+esc(a.domain)+(a.publish_date?" · "+esc(a.publish_date):"")+"</span>";
+  tip.style.display="block";const tw=tip.offsetWidth,th=tip.offsetHeight;
+  tip.style.left=Math.max(8,Math.min(innerWidth-tw-8,e.clientX+12))+"px";tip.style.top=Math.max(8,e.clientY-th-12)+"px";}
+$("map").addEventListener("pointermove",e=>{if(e.pointerType==="mouse")hover(nearest(e,14),e);});
+$("map").addEventListener("pointerleave",()=>hover(null));
+$("map").addEventListener("click",e=>{const p=nearest(e,e.pointerType==="mouse"?14:22);if(p){openCard(p.o.a);}else{hover(null);closeCard();}});
+addEventListener("scroll",()=>hover(null),{passive:true});
+let rz;addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(drawMap,120);});
+
+// ---- topic panel ----
+function drawTopics(){
+  const box=$("topics");box.innerHTML="";
+  for(let i=0;i<=U;i++){if(!L.size[i])continue;const c=clusters[i];
+    const b=document.createElement("button");b.className="topic";b.type="button";b.setAttribute("aria-pressed",sel===i);
+    b.innerHTML='<span class="h"><span class="sw" style="background:'+color(i)+'"></span>'+esc(cname(i))+'<span class="n">'+L.size[i]+'</span></span>'+
+      (c?'<p>'+esc(c.description)+'</p>'+(c.terms&&c.terms.length?'<div class="terms">'+c.terms.slice(0,8).map(t=>esc(termText(t))).join(" · ")+'</div>':""):'<p>Sources that fit no topic.</p>');
+    b.onclick=()=>select(i);box.appendChild(b);}
+}
+
+// ---- timeline strip ----
+function drawTimeline(){
+  const dated=arts.filter(a=>a.publish_date);
+  if(dated.length*2<arts.length||!dated.length){$("timeline").hidden=true;return;}
+  $("timeline").hidden=false;$("tl-h").textContent="Sources per year ("+dated.length+" of "+arts.length+" dated)";
+  const svg=$("tl"),yrs=dated.map(a=>+a.publish_date.slice(0,4)),y0=Math.min(...yrs),y1=Math.max(...yrs),ny=y1-y0+1;
+  const bins=[...Array(ny)].map(()=>new Array(U+1).fill(0));dated.forEach(a=>bins[+a.publish_date.slice(0,4)-y0][ci(a)]++);
+  const mx=Math.max(...bins.map(b=>b.reduce((s,v)=>s+v,0)));
+  const draw=()=>{svg.textContent="";const W=svg.getBoundingClientRect().width;if(!W)return;svg.setAttribute("viewBox","0 0 "+W+" 64");
+    const bw=W/ny,h=46;
+    bins.forEach((b,k)=>{let y=h;b.forEach((v,i)=>{if(!v)return;const hh=v/mx*h;
+      const r=el("rect",{x:(k*bw+1).toFixed(1),y:(y-hh+1).toFixed(1),width:Math.max(1,bw-2).toFixed(1),height:Math.max(0.5,hh-1).toFixed(1),fill:color(i)},svg);
+      const t=el("title",{},r);t.textContent=(y0+k)+": "+v+" in "+cname(i);y-=hh;});});
+    el("line",{x1:0,x2:W,y1:h+0.5,y2:h+0.5,stroke:"var(--axis)"},svg);
+    const step=ny>24?10:ny>10?5:ny>5?2:1;
+    for(let yr=y0;yr<=y1;yr++)if((yr-y0)%step===0||yr===y1){if(yr===y1&&(yr-y0)%step&&(yr-y0)%step<step/2&&ny>3)continue;
+      const t=el("text",{x:(yr===y0?1:yr===y1?W-1:(yr-y0+0.5)*bw).toFixed(1),y:60,"text-anchor":yr===y0?"start":yr===y1?"end":"middle","font-size":10,fill:"var(--muted)"},svg);t.textContent=yr;}};
+  draw();addEventListener("resize",draw);
+}
+
+// ---- claims ----
+const ST=["agrees","qualifies","disputes"],STL={agrees:"agree",qualifies:"qualify",disputes:"dispute"};
+function drawClaims(){
+  const v=$("v-claims");v.innerHTML="";
+  if(!props.length){v.innerHTML='<div class="panel empty">No claim was taken up by two or more sources in this sample.</div>';return;}
+  const inSel=s=>{const a=byId.get(s.article_id);return sel==null||(a&&(ci(a)===sel||(a.also_cluster_id!=null&&cidx.get(a.also_cluster_id)===sel)));};
+  const rows=props.map(p=>{const ss=p.stances.filter(inSel),n={agrees:0,qualifies:0,disputes:0};ss.forEach(s=>n[s.stance]++);return{p,ss,n};})
+    .filter(r=>r.ss.length)
+    .sort((a,b)=>(b.n.qualifies+b.n.disputes)-(a.n.qualifies+a.n.disputes)||b.ss.length-a.ss.length||a.p.position-b.p.position);
+  if(!rows.length){v.innerHTML='<div class="panel empty">No source in this topic takes a position on a shared claim.</div>';return;}
+  const maxTot=Math.max(...rows.map(r=>r.ss.length));
+  rows.forEach(({p,ss,n})=>{const d=document.createElement("details");d.className="prop panel";d.dataset.position=p.position;
+    const tot=ss.length;
+    d.innerHTML='<summary><div class="st">'+esc(p.statement)+'</div><div class="bar" style="width:'+(100*tot/maxTot).toFixed(1)+'%">'+ST.map(k=>n[k]?'<i style="flex:'+n[k]+';background:var(--'+(k==="agrees"?"agree":k==="qualifies"?"qual":"disp")+')"></i>':"").join("")+'</div>'+
+      '<div class="counts">'+ST.map(k=>'<span data-k="'+k+'">'+n[k]+" "+STL[k]+"</span>").join(" · ")+(sel!=null&&tot<p.stances.length?" (of "+p.stances.length+" overall)":"")+
+      (n.disputes?"":' · <i>no source in this sample disputes it</i>')+'</div></summary>';
+    const body=document.createElement("div");body.className="body";
+    ss.slice().sort((a,b)=>ST.indexOf(a.stance)-ST.indexOf(b.stance)).forEach(s=>{const a=byId.get(s.article_id);
+      body.insertAdjacentHTML("beforeend",'<div class="stance"><div><span class="badge b-'+s.stance+'">'+STL[s.stance]+'</span></div><div>'+esc(s.claim)+
+        '<div class="src">'+(a?'<a href="'+esc(a.url)+'" target="_blank" rel="noopener">'+esc(titleOf(a))+'</a> · '+esc(a.domain):"unknown source")+'</div></div></div>');});
+    d.appendChild(body);v.appendChild(d);});
+}
+
+// ---- sources table ----
+let sortK="topic",sortD=1;
+function drawTable(){
+  const cols=[["title","Source"],["domain","Domain"],["date","Date"],["topic","Topic"],["claims","Claims"]];
+  const val=(a,k)=>k==="title"?titleOf(a).toLowerCase():k==="domain"?a.domain:k==="date"?(a.publish_date||""):k==="topic"?ci(a):stancesOf.get(a.id).length;
+  const rows=arts.filter(a=>sel==null||ci(a)===sel).slice().sort((a,b)=>{const x=val(a,sortK),y=val(b,sortK);return(x<y?-1:x>y?1:0)*sortD||titleOf(a).localeCompare(titleOf(b));});
+  $("tbl").innerHTML="<thead><tr>"+cols.map(([k,l])=>'<th data-k="'+k+'">'+l+(k===sortK?(sortD>0?" ▲":" ▼"):"")+"</th>").join("")+"</tr></thead><tbody>"+
+    rows.map(a=>'<tr><td><a href="'+esc(a.url)+'" target="_blank" rel="noopener">'+esc(titleOf(a))+'</a></td><td class="d">'+esc(a.domain)+'</td><td class="d">'+esc(a.publish_date||"–")+
+      '</td><td><span class="sw" style="background:'+color(ci(a))+'"></span> '+esc(cname(ci(a)))+(a.fit==="edge"?" (edge)":"")+'</td><td>'+stancesOf.get(a.id).length+"</td></tr>").join("")+"</tbody>";
+  $("tbl").querySelectorAll("th").forEach(th=>th.onclick=()=>{const k=th.dataset.k;sortD=k===sortK?-sortD:1;sortK=k;drawTable();});
+}
+
+// ---- source card ----
+function openCard(a){const c=$("card"),i=ci(a),st=stancesOf.get(a.id);
+  const sub=[a.domain,a.publish_date,a.source_type,a.read_depth?(a.read_depth==="full"?"read in full":"snippet only"):null].filter(Boolean).map(esc).join(" · ");
+  c.innerHTML='<button class="linkbtn x" type="button" aria-label="Close">✕</button><h2>'+esc(titleOf(a))+'</h2><div class="sub">'+sub+'</div>'+
+    '<div class="sub"><span class="sw" style="background:'+color(i)+'"></span> '+esc(cname(i))+(a.fit==="edge"?" (edge of topic)":"")+
+    (a.also_cluster_id!=null&&cidx.has(a.also_cluster_id)?" · bridges to "+esc(cname(cidx.get(a.also_cluster_id))):"")+'</div>'+
+    (a.summary?'<p>'+esc(a.summary)+'</p>':"")+(a.quote?'<p>“'+esc(a.quote)+'”</p>':"")+
+    (st.length?'<h3>Positions on shared claims</h3><ul>'+st.map(({p,s})=>'<li><span class="badge b-'+s.stance+'">'+STL[s.stance]+'</span>'+esc(p.statement)+'<br><span class="sub">'+esc(s.claim)+'</span></li>').join("")+"</ul>":"")+
+    '<p><a href="'+esc(a.url)+'" target="_blank" rel="noopener">Open the source ↗</a></p>';
+  c.querySelector(".x").onclick=closeCard;c.classList.add("on");}
+function closeCard(){$("card").classList.remove("on");}
+addEventListener("keydown",e=>{if(e.key==="Escape"){closeCard();hover(null);}});
+
+// ---- boot ----
+window.__dl={ms:L.ms,nodes:L.nodes.map(o=>({id:o.a.id,i:o.i,x:o.x,y:o.y})),anchors:L.A,order:L.order,labels:[]};
+drawTopics();drawTimeline();drawClaims();drawTable();
+const start=(location.hash||"#map").slice(1);show(views.includes(start)?start:"map");
+})();
+</script>
+</body>
+</html>

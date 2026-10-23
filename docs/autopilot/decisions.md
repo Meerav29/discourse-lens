@@ -43,3 +43,39 @@ Question: Use d3 from a CDN or hand-written JS for the layout?
 Chosen: vanilla JS and SVG with no CDN dependency, so the page doesn't depend on chat artifacts having the same CSP as Claude Code artifacts (unverified). d3-force from cdnjs at a pinned version is the fallback.
 Rejected: d3 by default.
 Blast radius: slice-2 implementation effort.
+
+## 2026-10-23 slice-2 browser and Playwright version for the checks, PR #TBD
+Question: The routine says to install Chromium with `npx -y playwright@1.48.2 install --with-deps chromium`; this cloud environment says Chromium is preinstalled and not to run `playwright install`.
+Chosen: the preinstalled Playwright 1.56.1 with Chromium 141.0.7390.37. `check.cjs` only uses the stable API (launch, newContext, screenshot, mouse, touchscreen), so it should run on 1.48.2 too, but that wasn't tried.
+Rejected: downloading a second browser into the sandbox against the environment's instruction.
+Blast radius: screenshots and timings come from Chromium 141. None of the checks depend on the version.
+
+## 2026-10-23 slice-2 rotate the layout to fit the viewport, PR #TBD
+Question: The computed layout is often taller than wide, which left half of a 1440 px map empty.
+Chosen: at draw time, try 12 rotations (0° to 165°) and keep the one that gives the largest scale. A rotation changes no distances, so P2 to P4 are unaffected (they're measured on the unrotated positions).
+Rejected: stretching x and y separately (distorts distances); a fixed tall map (wasted space on desktop).
+Blast radius: the unclustered group, placed below the topics before rotation, can end up in a corner instead of at the bottom as design.md 4.3 says. It stays separate and labelled.
+
+## 2026-10-23 slice-2 tap opens the source card, not a tooltip, PR #TBD
+Question: design.md P6 asks that a tap at 390 px show title, domain and date. A tooltip and the card both did, so they showed the same thing twice.
+Chosen: on touch, a tap opens the source card (title, domain, date, topic, summary, stances, link). Mouse hover still shows the tooltip.
+Rejected: tooltip on tap and card on a second tap (two taps to read anything).
+Blast radius: template interaction only.
+
+## 2026-10-23 slice-2 what a selected topic does to the claims view, PR #TBD
+Question: design.md says selecting a topic "filters" the claims view but not how.
+Chosen: keep only stances from that topic's sources (including sources that bridge to it), hide propositions left with none, recount the bars, and show "(of N overall)". Ordering is recomputed on the filtered counts.
+Rejected: highlighting without filtering (hard to read with 18-stance propositions).
+Blast radius: template only.
+
+## 2026-10-23 slice-2 point size and bar width, PR #TBD
+Question: design.md says collision radius "scales with point size" without defining size, and the claims bars had no cross-proposition scale.
+Chosen: point radius grows with the number of stances a source takes (4.5 + 0.75 per stance, capped at +3). Bar width is proportional to the proposition's stance count relative to the largest one.
+Rejected: size by date or domain (meaningless for the map); full-width bars (hide that 18 sources take up one claim and 2 take up another).
+Blast radius: template only.
+
+## 2026-10-23 slice-2 generated test files not committed, PR #TBD
+Question: Commit the test contracts and their rendered pages?
+Chosen: commit the generators (`make_test_contracts.py`, `build_map.py`), `map.html`, `check-results.json` and the screenshots; gitignore `test-contracts/` and `out/`, which rebuild in seconds.
+Rejected: committing about 200 KB of derived JSON and HTML.
+Blast radius: a reviewer re-running checks runs the three commands in FINDINGS.md first.

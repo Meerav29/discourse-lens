@@ -1,0 +1,138 @@
+{
+ "generated_at": "2026-10-23T13:17:29.859Z",
+ "chromium": "141.0.7390.37",
+ "pages": {},
+ "P1": {
+  "bytes": 60074,
+  "under_1mb": true,
+  "requests_1440": [],
+  "requests_390": []
+ },
+ "P2": {
+  "hash_load1": "f2ffd086b6375bec",
+  "hash_load2": "f2ffd086b6375bec",
+  "hash_without_xy": "f2ffd086b6375bec",
+  "hash_390": "f2ffd086b6375bec",
+  "layout_ms_fixture52": 11.8,
+  "layout_ms_synthetic150": 33.9,
+  "synthetic_errors": []
+ },
+ "P3": {
+  "closer_to_own_centroid": 48,
+  "clustered": 48,
+  "pct": 100,
+  "label_overlaps_1440": [],
+  "label_overlaps_390": [],
+  "labels_1440": 7,
+  "labels_390": 7
+ },
+ "P4": {
+  "rows": [
+   {
+    "topic": "Jevons paradox explained",
+    "nearest_in_app_umap": "Rebound effect economics",
+    "nearest_in_computed": "AI's environmental footprint",
+    "match": false
+   },
+   {
+    "topic": "Rebound effect economics",
+    "nearest_in_app_umap": "Jevons paradox explained",
+    "nearest_in_computed": "Jevons paradox explained",
+    "match": true
+   },
+   {
+    "topic": "Efficiency as climate strategy",
+    "nearest_in_app_umap": "Consumer efficiency basics",
+    "nearest_in_computed": "Consumer efficiency basics",
+    "match": true
+   },
+   {
+    "topic": "Consumer efficiency basics",
+    "nearest_in_app_umap": "Efficiency as climate strategy",
+    "nearest_in_computed": "Efficiency as climate strategy",
+    "match": true
+   },
+   {
+    "topic": "Jevons and AI economics",
+    "nearest_in_app_umap": "AI's environmental footprint",
+    "nearest_in_computed": "AI's environmental footprint",
+    "match": true
+   },
+   {
+    "topic": "AI's environmental footprint",
+    "nearest_in_app_umap": "Jevons and AI economics",
+    "nearest_in_computed": "Jevons and AI economics",
+    "match": true
+   }
+  ],
+  "matches": 5
+ },
+ "P5": {
+  "propositions_shown": 11,
+  "stance_total": 74,
+  "order_shown": [
+   0,
+   9,
+   3,
+   1,
+   7,
+   2,
+   5,
+   4,
+   6,
+   10,
+   8
+  ],
+  "order_expected": [
+   0,
+   9,
+   3,
+   1,
+   7,
+   2,
+   5,
+   4,
+   6,
+   10,
+   8
+  ],
+  "order_ok": true,
+  "expanded_links": 18,
+  "expanded_links_expected": 18,
+  "links_all_known_urls": true
+ },
+ "P6": {
+  "hover_tooltip_shown": true,
+  "hover_text": "Jevons paradox - Wikipedia\nen.wikipedia.org · 2004-09-15",
+  "tap_390": {
+   "cardShown": true,
+   "card_title": "Jevons Paradox: The Unintended Consequence of Efficiency — OhMyEcon",
+   "card_sub": "ohmyecon.org · 2025-03-26"
+  },
+  "null_title_card": "www.inscc.utah.edu",
+  "null_title_domain": "www.inscc.utah.edu",
+  "topic_filter": {
+   "topic": "Rebound effect economics",
+   "topic_size": 8,
+   "dimmed": 44,
+   "claims": 3,
+   "rows": 8
+  }
+ },
+ "P7": {
+  "timelineHidden": true,
+  "edgeCount": 0,
+  "meta": "52 sources · 34 read in full · 2 searches · 6 topics · 0 shared claims · 4 unclustered",
+  "claimsText": "No claim was taken up by two or more sources in this sample.",
+  "fixture_timeline_shown": true,
+  "errors_1440": [],
+  "errors_390": []
+ },
+ "console": {
+  "map_1440": [],
+  "map_390": [],
+  "clean_1440": [],
+  "clean_390": [],
+  "dark": []
+ }
+}
